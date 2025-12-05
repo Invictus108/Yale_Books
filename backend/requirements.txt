@@ -4,7 +4,9 @@ requests
 xmltodict
 flask-cors
 python-dotenv
-sentence-transformers
+sentence-transformers==2.2.2
+torch==2.2.2+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
 boto3
 botocore
 Flask-SQLAlchemy
