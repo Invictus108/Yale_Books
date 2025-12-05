@@ -23,7 +23,7 @@ def create_app():
     app.secret_key = os.getenv("SESSION_SECRET") # for signing cookies
     CORS(app,
         supports_credentials=True,
-        origins=["http://localhost:5173"], # TODO: change to prod
+        origins=["https://yalebooks-be079.web.app/","http://localhost:5173"], # TODO: change to prod
         methods=["GET", "POST"]
     )
 

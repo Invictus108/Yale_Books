@@ -7,13 +7,13 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: "https://yale-books.onrender.com", //http://localhost:5000
         changeOrigin: true,
         secure: false,
       },
-      "/login": "http://localhost:5000",
-      "/logout": "http://localhost:5000",
-      "/login_callback": "http://localhost:5000"
+      "/login": "https://yale-books.onrender.com",
+      "/logout": "https://yale-books.onrender.com",
+      "/login_callback": "https://yale-books.onrender.com"
     }
   },
 });

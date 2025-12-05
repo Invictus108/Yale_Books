@@ -5,7 +5,7 @@ import axios from 'axios'
 
 // configure axios
 axios.defaults.withCredentials = true;
-axios.defaults.baseURL = "http://localhost:5000";
+axios.defaults.baseURL = "https://yale-books.onrender.com"; //"http://localhost:5000"
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
