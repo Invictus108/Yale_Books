@@ -1,0 +1,10 @@
+flask
+gunicorn
+requests
+xmltodict
+flask-cors
+python-dotenv
+sentence-transformers
+boto3
+botocore
+Flask-SQLAlchemy
