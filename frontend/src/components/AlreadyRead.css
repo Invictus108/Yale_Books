@@ -1,0 +1,183 @@
+/* ================================
+   PAGE
+================================ */
+
+#alreadyread-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+  padding: 1.5rem 1.75rem 2.5rem;
+}
+
+/* ================================
+   HEADER
+================================ */
+
+.already-header {
+  max-width: 900px;
+  margin: 0 auto 1.5rem auto;
+}
+
+.already-title {
+  margin: 0 0 0.3rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.already-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+/* ================================
+   CONTENT / SHELVES
+================================ */
+
+.already-content {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.already-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 2.5rem 0;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: 1.8rem;
+  row-gap: 2.5rem; /* extra vertical spacing = shelf vibe */
+}
+
+/* each slot gets a little “shelf” line under it */
+.already-item {
+  position: relative;
+  padding-bottom: 1.4rem;
+}
+
+.already-item::after {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0;
+  height: 4px;
+  background: #e3e6ea;
+  border-radius: 999px;
+}
+
+/* ================================
+   CARD
+================================ */
+
+.already-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.already-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.already-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ================================
+   COVER
+================================ */
+
+.already-cover-wrapper {
+  width: 100%;
+  padding: 0.9rem 0.9rem 0.4rem 0.9rem;
+  display: flex;
+  justify-content: center;
+}
+
+.already-cover {
+  width: 100%;
+  max-width: 160px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+/* ================================
+   TEXT / META
+================================ */
+
+.already-info {
+  padding: 0.6rem 0.9rem 0.9rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.already-book-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #00356b;
+}
+
+.already-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.already-rating {
+  font-size: 0.9rem;
+  color: #0f4d92;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 900px) {
+  #alreadyread-page {
+    padding: 1.2rem 1.1rem 2rem;
+  }
+
+  .already-title {
+    font-size: 1.8rem;
+  }
+
+  .already-list {
+    column-gap: 1.4rem;
+    row-gap: 2.1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  #alreadyread-page {
+    padding: 1rem 0.8rem 1.8rem;
+  }
+
+  .already-title {
+    font-size: 1.5rem;
+  }
+
+  .already-list {
+    grid-template-columns: 1fr; /* single column on small screens */
+  }
+
+  .already-cover {
+    max-width: 140px;
+  }
+}

@@ -1,0 +1,99 @@
+@app.route("/api/get_recommendations")
+def get_recommendations():
+    user_netid = request.args.get("user")
+    user = User.query.filter_by(netid=user_netid).first()
+
+    if not user:
+        return {"error": "User not found"}, 404
+
+    user_id = user.id
+
+    # -----------------------------
+    # 1. Books the user has liked (rating >= 4)
+    # -----------------------------
+    user_likes_sub = (
+        db.session.query(Review.book_id, Review.rating)
+        .filter(Review.user_id == user_id, Review.rating >= 4)
+        .subquery()
+    )
+
+    # -----------------------------
+    # 2. Followees of the user
+    # -----------------------------
+    followees_sub = (
+        db.session.query(Follow.followee_id)
+        .filter(Follow.follower_id == user_id)
+        .subquery()
+    )
+
+    # -----------------------------
+    # 3. Books followees have read
+    # -----------------------------
+    followee_reads_sub = (
+        db.session.query(Review.book_id.label("book_id"),
+                         Review.user_id.label("followee_id"))
+        .filter(Review.user_id.in_(followees_sub))
+        .subquery()
+    )
+
+    # -----------------------------
+    # 4. Books similar to user's liked books (shared authors)
+    # -----------------------------
+    liked_authors_sub = (
+        db.session.query(authors_to_books.c.author_id)
+        .filter(authors_to_books.c.book_id.in_(
+            db.session.query(user_likes_sub.c.book_id)
+        ))
+        .subquery()
+    )
+
+    similar_books_sub = (
+        db.session.query(authors_to_books.c.book_id)
+        .filter(authors_to_books.c.author_id.in_(liked_authors_sub))
+        .subquery()
+    )
+
+    # -----------------------------
+    # 5. Candidate books: similar OR read by followees
+    # -----------------------------
+    candidate_books_sub = (
+        db.session.query(similar_books_sub.c.book_id)
+        .union(
+            db.session.query(followee_reads_sub.c.book_id)
+        )
+        .subquery()
+    )
+
+    # -----------------------------
+    # 6. Exclude books user already read
+    # -----------------------------
+    already_read_sub = (
+        db.session.query(AlreadyRead.book_id)
+        .filter(AlreadyRead.user_id == user_id)
+        .subquery()
+    )
+
+    # -----------------------------
+    # 7. Build scoring query
+    # -----------------------------
+    recommendations = (
+        db.session.query(
+            Books,
+            (db.func.coalesce(user_likes_sub.c.rating, 0) * 2).label("user_score"),
+            db.func.count(followee_reads_sub.c.followee_id).label("follow_score"),
+            (
+                (db.func.coalesce(user_likes_sub.c.rating, 0) * 2) +
+                db.func.count(followee_reads_sub.c.followee_id)
+            ).label("total_score"),
+        )
+        .join(candidate_books_sub, Books.id == candidate_books_sub.c.book_id)
+        .outerjoin(user_likes_sub, Books.id == user_likes_sub.c.book_id)
+        .outerjoin(followee_reads_sub, Books.id == followee_reads_sub.c.book_id)
+        .filter(~Books.id.in_(already_read_sub))
+        .group_by(Books.id, user_likes_sub.c.rating)
+        .order_by(db.desc("total_score"))
+        .limit(20)
+        .all()
+    )
+
+    return {"books": [book.to_dict() for book, user_score, follow_score, total_score in recommendations]}

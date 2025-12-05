@@ -1,0 +1,213 @@
+/* =========================================
+   PAGE WRAPPER
+========================================= */
+
+#home-page {
+  background: #f7f9fc;
+  min-height: 100vh;
+  padding: 1.5rem 1.75rem 2.5rem;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+}
+
+/* =========================================
+   HEADER / HERO CARD
+========================================= */
+
+.home-header {
+  max-width: 1100px;
+  margin: 0 auto 1.6rem auto;
+  padding: 1rem 1.2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.welcome-text {
+  font-size: 0.98rem;
+  color: #5a6a80;
+  margin: 0.1rem 0 0 0;
+}
+
+/* small accent line under text */
+.home-header::after {
+  content: "";
+  display: block;
+  margin-top: 0.7rem;
+  height: 2px;
+  width: 70px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00356b, #0f4d92);
+}
+
+/* =========================================
+   BOOK LIST SECTION
+========================================= */
+
+.book-list-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.book-list-container h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.8rem 0;
+  color: #00356b;
+  font-weight: 600;
+}
+
+.book-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.9rem 0 0 0;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  column-gap: 1.4rem;
+  row-gap: 1.9rem;
+}
+
+.book-list-item {
+  margin: 0;
+}
+
+.book-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* =========================================
+   BOOK CARD – TILE STYLE
+========================================= */
+
+.book-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.75rem 0.8rem 0.85rem;
+
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.09);
+  border-color: #c7d1de;
+}
+
+/* =========================================
+   COVER
+========================================= */
+
+.book-cover {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 140px;
+  margin: 0 auto 0.55rem auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+/* =========================================
+   TEXT INFO
+========================================= */
+
+.book-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/* smaller title, single-line with ellipsis */
+.book-title {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #00356b;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* rating as a small pill tag */
+.book-rating {
+  margin-top: 0.05rem;
+  font-size: 0.86rem;
+  color: #0f4d92;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: #e7edf6;
+}
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 900px) {
+  #home-page {
+    padding: 1.3rem 1.1rem 2rem;
+  }
+
+  .page-title {
+    font-size: 1.8rem;
+  }
+
+  .book-list {
+    column-gap: 1.2rem;
+    row-gap: 1.6rem;
+  }
+}
+
+@media (max-width: 600px) {
+  #home-page {
+    padding: 1rem 0.85rem 1.8rem;
+  }
+
+  .home-header {
+    padding: 0.9rem 0.95rem;
+  }
+
+  .page-title {
+    font-size: 1.6rem;
+  }
+
+  .book-card {
+    padding: 0.7rem 0.8rem 0.8rem;
+  }
+
+  .book-cover {
+    max-width: 120px;
+  }
+
+  /* slightly smaller on mobile too */
+  .book-title {
+    font-size: 0.74rem;
+  }
+
+  .book-rating {
+    font-size: 0.82rem;
+  }
+}

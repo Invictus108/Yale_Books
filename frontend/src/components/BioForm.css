@@ -1,0 +1,169 @@
+/* ================================
+   PAGE WRAPPER
+================================ */
+
+#bio-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+  padding: 1.5rem 1.75rem 2.5rem;
+}
+
+.bio-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ================================
+   CARD
+================================ */
+
+.bio-card {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 1.5rem;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
+  padding: 1.5rem 1.7rem;
+}
+
+.bio-title {
+  margin: 0 0 1rem 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+/* ================================
+   FORM
+================================ */
+
+.bio-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bio-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bio-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #00356b;
+}
+
+.bio-textarea {
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #d1d7e0;
+  background: #ffffff;
+  outline: none;
+  min-height: 160px;
+  resize: vertical;
+  color: #1a2938;
+
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.bio-textarea:focus {
+  border-color: #00356b;
+  box-shadow: 0 0 0 2px rgba(0, 53, 107, 0.12);
+  background-color: #fbfdff;
+}
+
+/* ================================
+   ACTIONS / BUTTON
+================================ */
+
+.bio-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Reuse a primary pill button style */
+
+.primary-button {
+  background: #00356b;
+  color: #ffffff;
+  border: 1px solid #00356b;
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.18s ease, transform 0.12s ease,
+    box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.primary-button:hover {
+  background: #0f4d92;
+  border-color: #0f4d92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.bio-submit-button {
+  min-width: 140px;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 700px) {
+  #bio-page {
+    padding: 1.2rem 1rem 2rem;
+  }
+
+  .bio-card {
+    padding: 1.25rem 1.3rem;
+    margin-top: 1.2rem;
+  }
+
+  .bio-title {
+    font-size: 1.5rem;
+  }
+
+  .bio-actions {
+    justify-content: center;
+  }
+
+  .bio-submit-button {
+    width: 100%;
+    max-width: 260px;
+  }
+}
+
+.back-button {
+  background: transparent;
+  border: none;
+  color: #00356b;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.back-button:hover {
+  color: #0f4d92;
+  transform: translateX(-1px);
+}

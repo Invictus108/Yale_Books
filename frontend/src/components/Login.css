@@ -1,0 +1,99 @@
+/* ================================
+   PAGE WRAPPER
+================================ */
+
+#not-logged-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 1.75rem;
+}
+
+.not-logged-page {
+  width: 100%;
+}
+
+/* ================================
+   CARD
+================================ */
+
+.not-logged-card {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+
+  padding: 1.8rem 2rem;
+  text-align: center;
+}
+
+.not-logged-title {
+  margin: 0 0 0.6rem 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.not-logged-text {
+  margin: 0 0 1.3rem 0;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+/* ================================
+   BUTTON
+================================ */
+
+.primary-button {
+  background: #00356b;
+  color: #ffffff;
+  border: 1px solid #00356b;
+  border-radius: 999px;
+  padding: 0.5rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.18s ease, transform 0.12s ease,
+    box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.primary-button:hover {
+  background: #0f4d92;
+  border-color: #0f4d92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.not-logged-button {
+  margin-top: 0.3rem;
+  min-width: 180px;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 600px) {
+  #not-logged-page {
+    padding: 1.2rem 1rem;
+  }
+
+  .not-logged-card {
+    padding: 1.5rem 1.3rem;
+  }
+
+  .not-logged-title {
+    font-size: 1.6rem;
+  }
+}

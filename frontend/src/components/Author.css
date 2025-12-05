@@ -1,0 +1,190 @@
+/* ================================
+   PAGE
+================================ */
+
+#author-books-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+  padding: 1.5rem 1.75rem 2.5rem;
+}
+
+/* ================================
+   HEADER
+================================ */
+
+.author-header {
+  max-width: 1100px;
+  margin: 0 auto 1.5rem auto;
+}
+
+.author-title {
+  margin: 0 0 0.3rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.author-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+/* ================================
+   CONTENT / SHELVES
+================================ */
+
+.author-books-content {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.author-empty {
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+/* Grid of book cards, like shelves */
+
+.author-book-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 2.5rem 0;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: 1.8rem;
+  row-gap: 2.5rem;
+}
+
+.author-book-item {
+  position: relative;
+  padding-bottom: 1.4rem;
+}
+
+/* subtle shelf bar under each slot */
+.author-book-item::after {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0;
+  height: 4px;
+  background: #e3e6ea;
+  border-radius: 999px;
+}
+
+/* ================================
+   CARD
+================================ */
+
+.author-book-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.author-book-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.author-book-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ================================
+   COVER
+================================ */
+
+.author-book-cover-wrapper {
+  width: 100%;
+  padding: 0.9rem 0.9rem 0.4rem 0.9rem;
+  display: flex;
+  justify-content: center;
+}
+
+.author-book-cover {
+  width: 100%;
+  max-width: 160px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+/* ================================
+   TEXT / META
+================================ */
+
+.author-book-info {
+  padding: 0.6rem 0.9rem 0.9rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.author-book-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #00356b;
+}
+
+.author-book-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.author-book-rating {
+  font-size: 0.9rem;
+  color: #0f4d92;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 900px) {
+  #author-books-page {
+    padding: 1.2rem 1.1rem 2rem;
+  }
+
+  .author-title {
+    font-size: 1.8rem;
+  }
+
+  .author-book-list {
+    column-gap: 1.4rem;
+    row-gap: 2.1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  #author-books-page {
+    padding: 1rem 0.8rem 1.8rem;
+  }
+
+  .author-title {
+    font-size: 1.5rem;
+  }
+
+  .author-book-list {
+    grid-template-columns: 1fr;
+  }
+
+  .author-book-cover {
+    max-width: 140px;
+  }
+}

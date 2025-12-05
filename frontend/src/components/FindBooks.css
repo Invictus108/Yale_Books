@@ -1,0 +1,183 @@
+/* ================================
+   PAGE WRAPPER
+================================ */
+
+#recommended-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+  padding: 1.5rem 1.75rem;
+}
+
+/* ================================
+   HEADER
+================================ */
+
+.recommended-header {
+  max-width: 900px;
+  margin: 0 auto 1.5rem auto;
+  text-align: left;
+}
+
+.recommended-title {
+  margin: 0 0 0.3rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.recommended-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+/* ================================
+   CONTENT / GRID
+================================ */
+
+.recommended-content {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Grid of book cards */
+.recommended-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 2.5rem 0;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  column-gap: 1.8rem;
+  row-gap: 2.4rem; /* extra vertical space = shelf feeling */
+}
+
+/* Each grid cell */
+.recommended-item {
+  position: relative;
+  padding-bottom: 1.4rem; /* space for the “shelf” line */
+}
+
+/* subtle shelf line under each item */
+.recommended-item::after {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0;
+  height: 4px;
+  background: #e3e6ea;
+  border-radius: 999px;
+}
+
+/* links */
+.recommended-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ================================
+   CARD
+================================ */
+
+.recommended-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.03);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+/* hover: lift slightly off the “shelf” */
+.recommended-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ================================
+   COVER IMAGE
+================================ */
+
+.recommended-cover-wrapper {
+  width: 100%;
+  padding: 0.9rem 0.9rem 0.4rem 0.9rem;
+  display: flex;
+  justify-content: center;
+}
+
+.recommended-cover {
+  width: 100%;
+  max-width: 160px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+/* ================================
+   TEXT INFO
+================================ */
+
+.recommended-info {
+  padding: 0.6rem 0.9rem 0.9rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.recommended-book-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #00356b;
+}
+
+.recommended-rating {
+  font-size: 0.9rem;
+  color: #0f4d92;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 900px) {
+  #recommended-page {
+    padding: 1.2rem 1.1rem;
+  }
+
+  .recommended-title {
+    font-size: 1.8rem;
+  }
+
+  .recommended-list {
+    column-gap: 1.4rem;
+    row-gap: 2rem;
+  }
+}
+
+@media (max-width: 600px) {
+  #recommended-page {
+    padding: 1rem 0.8rem;
+  }
+
+  .recommended-title {
+    font-size: 1.5rem;
+  }
+
+  .recommended-list {
+    grid-template-columns: 1fr; /* single column on small phones */
+    row-gap: 1.8rem;
+  }
+
+  .recommended-cover {
+    max-width: 140px;
+  }
+}

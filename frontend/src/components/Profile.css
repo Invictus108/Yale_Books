@@ -1,0 +1,372 @@
+/* ================================
+   PAGE WRAPPER
+   (No horizontal padding so NavBar stays aligned)
+================================ */
+
+#my-profile-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #00356b;
+}
+
+#my-profile-page.profile-container {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Inner content area matches other pages (max-width + padding) */
+#my-profile-page .profile-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.75rem 2.5rem;
+}
+
+/* ================================
+   HEADER / IDENTITY
+================================ */
+
+#my-profile-page .profile-header {
+  margin-bottom: 1.5rem;
+}
+
+#my-profile-page .profile-page-title {
+  margin: 0 0 0.6rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+#my-profile-page .profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+#my-profile-page .profile-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: #e7edf6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #00356b;
+  flex-shrink: 0;
+}
+
+#my-profile-page .profile-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+#my-profile-page .profile-netid {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+#my-profile-page .profile-reputation {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+#my-profile-page .profile-reputation span {
+  font-weight: 600;
+  color: #0f4d92;
+}
+
+/* ================================
+   STATS + EDIT
+================================ */
+
+#my-profile-page .profile-top-section {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.8rem;
+}
+
+#my-profile-page .profile-stats-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  padding: 0.8rem 1rem;
+
+  display: flex;
+  gap: 1.3rem;
+}
+
+#my-profile-page .profile-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+#my-profile-page .profile-stat-label {
+  font-size: 0.8rem;
+  color: #5a6a80;
+}
+
+#my-profile-page .profile-stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #00356b;
+}
+
+#my-profile-page .profile-edit-wrapper {
+  flex: 0 0 auto;
+}
+
+/* Edit Profile pill-style link */
+
+#my-profile-page .profile-edit-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid #00356b;
+  background: #ffffff;
+  color: #00356b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease,
+    box-shadow 0.1s ease, border-color 0.1s ease;
+}
+
+#my-profile-page .profile-edit-link:hover {
+  background: #00356b;
+  color: #ffffff;
+  border-color: #00356b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* ================================
+   BIO
+================================ */
+
+#my-profile-page .profile-bio-section {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  padding: 1rem 1.2rem;
+  margin-bottom: 2rem;
+}
+
+#my-profile-page .profile-section-title {
+  margin: 0 0 0.6rem 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+#my-profile-page .profile-bio {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #223144;
+  line-height: 1.5;
+}
+
+/* ================================
+   REVIEWS
+================================ */
+
+#my-profile-page .profile-reviews-section {
+  margin-top: 0.5rem;
+}
+
+#my-profile-page .profile-empty-reviews {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
+  color: #5a6a80;
+}
+
+#my-profile-page .profile-reviews-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.7rem 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+#my-profile-page .profile-review-item {
+  margin: 0;
+}
+
+#my-profile-page .profile-review-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e3e6ea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  padding: 0.7rem 0.9rem;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+/* clickable main area */
+
+#my-profile-page .profile-review-main {
+  flex: 1;
+  display: flex;
+  gap: 0.8rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* cover */
+
+#my-profile-page .profile-review-cover-wrapper {
+  flex-shrink: 0;
+}
+
+#my-profile-page .profile-review-cover {
+  width: 60px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+}
+
+/* text info */
+
+#my-profile-page .profile-review-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+#my-profile-page .profile-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+#my-profile-page .profile-review-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #00356b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#my-profile-page .profile-review-rating {
+  font-size: 0.9rem;
+  color: #0f4d92;
+}
+
+/* body + date */
+
+#my-profile-page .profile-review-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #223144;
+}
+
+#my-profile-page .profile-review-date {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #7b8798;
+}
+
+/* ================================
+   DELETE BUTTON
+================================ */
+
+#my-profile-page .profile-delete-button {
+  flex-shrink: 0;
+  align-self: center;
+
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #d08a8a;
+  background: #fff5f5;
+  color: #b3261e;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+    transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+#my-profile-page .profile-delete-button:hover {
+  background: #b3261e;
+  color: #ffffff;
+  border-color: #b3261e;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(179, 38, 30, 0.28);
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 900px) {
+  #my-profile-page .profile-page-title {
+    font-size: 1.8rem;
+  }
+
+  #my-profile-page .profile-netid {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 700px) {
+  #my-profile-page .profile-inner {
+    padding: 1.3rem 1.05rem 2rem;
+  }
+
+  #my-profile-page .profile-top-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #my-profile-page .profile-edit-wrapper {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  #my-profile-page .profile-review-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #my-profile-page .profile-delete-button {
+    align-self: flex-end;
+    margin-top: 0.4rem;
+  }
+}
+
+@media (max-width: 600px) {
+  #my-profile-page .profile-inner {
+    padding: 1rem 0.8rem 1.8rem;
+  }
+
+  #my-profile-page .profile-review-card {
+    padding: 0.65rem 0.8rem;
+  }
+
+  #my-profile-page .profile-review-cover {
+    width: 54px;
+  }
+}

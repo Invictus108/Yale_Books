@@ -1,0 +1,144 @@
+/* =========================================
+   BASE NAVBAR
+========================================= */
+
+.navbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 0.7rem 1.2rem;
+
+  background-color: #f9f9f9;
+  border-bottom: 1px solid #eaeaea;
+
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+/* inner: full width row */
+.navbar-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* =========================================
+   LEFT: TITLE
+========================================= */
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  margin-right: auto;         /* pushes links to the right */
+}
+
+#navbar-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #00356b;             /* Yale Blue */
+  letter-spacing: 0.4px;
+}
+
+/* =========================================
+   NAV LINKS (RIGHT SIDE)
+========================================= */
+
+.nav-links {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;            /* allow wrapping instead of tall column */
+  gap: 1.2rem;
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* links */
+.nav-links a {
+  text-decoration: none;
+  color: #00356b;
+  font-weight: 500;
+  font-size: 0.96rem;
+  transition: color 0.2s ease;
+}
+
+.nav-links a:hover {
+  color: #0f4d92;
+}
+
+/* active route underline */
+.active-link a {
+  border-bottom: 2px solid #00356b;
+  padding-bottom: 2px;
+  font-weight: 600;
+}
+
+/* =========================================
+   LOGOUT BUTTON
+========================================= */
+
+.logout-button {
+  background: #00356b;
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.logout-button:hover {
+  background: #0f4d92;
+  transform: translateY(-2px);
+}
+
+/* =========================================
+   RESPONSIVE (TABLETS)
+========================================= */
+
+@media (max-width: 900px) {
+  .nav-links {
+    gap: 0.9rem;
+  }
+
+  #navbar-title {
+    font-size: 1.2rem;
+  }
+}
+
+/* =========================================
+   RESPONSIVE (MOBILE)
+========================================= */
+
+@media (max-width: 700px) {
+  .navbar {
+    padding: 0.5rem 0.8rem;
+  }
+
+  #navbar-title {
+    font-size: 1.1rem;
+  }
+
+  .nav-links {
+    justify-content: flex-end;     /* keep them on the right */
+    gap: 0.6rem;                   /* tighter spacing */
+  }
+
+  .nav-links a {
+    font-size: 0.85rem;           /* smaller text so bar stays short */
+  }
+
+  .logout-button {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Keep vertical scrollbar space reserved on all pages */
+html {
+  scrollbar-gutter: stable;
+}

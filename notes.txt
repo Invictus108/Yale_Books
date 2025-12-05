@@ -1,0 +1,47 @@
+Account system (Yale CAS)
+Friend system 
+read later list
+Get books from database
+make sure to get cover images
+React layout
+Filter by genre and recommender algorithms based of friends and overall ratings
+Add ratings and comments for each book
+book react template
+
+
+Pages:
+Login
+Home (name and some books)
+Find books (recomendations)
+mybooks (whatever they added to read later)
+Search (add filters and text search) (allow add book)
+    - add book (form)
+    - sql string matching and filtering for basic search
+    - advanced vector embedding search
+People (list of people. Option to and unfollow)
+
+Specific pages:
+Book (all info) (allow rating, review, add to wishlist, mark read)
+Person (ratings and comments) (allow friend or unfriend)
+
+Database schema:
+User: id, netid, reputation (how active they are)
+Book: id, title, data published, blurb, blurb embedding vector, length, cover url (actual image stored on firebase), average rating, num ratings, num reviews, link (amazon or something)
+   - author table: id, author, (can add stuff here later)
+   - authors_to_books: id, author_fk, book_fk
+   - genre table: id, genre
+   - genre_to_books: id, genre_fk, book_fk
+Reviews and Rating: id, book_fk, user_fk, rating, review, date 
+Follows: id, follower_fk, followee_fk
+Wishlish: id, user_fk, book_fk
+Already Read: id, user_fk, book_fk
+
+
+recomendations: (search should apply recs within search confines)
+Based on what they liked in past (can be sql based)
+based on what friends liked (can also be sql based)
+best rated (overall recs)
+blurb vector embedding (store in table)
+
+Other Stuff:
+add bio for people
