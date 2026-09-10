@@ -31,8 +31,8 @@ COPY --from=frontend /app/frontend/dist frontend/dist
 # on a cold download. Remove this line to trade image size for slower first use.
 RUN python -c "import sys; sys.path.insert(0, 'backend'); from embeddings import get_model; get_model()"
 
-EXPOSE 5000
+ENV PORT=3000
+EXPOSE 3000
 
-CMD ["gunicorn", "--chdir", "backend", "app:app", \
-     "--bind", "0.0.0.0:5000", \
-     "--workers", "1", "--threads", "2", "--timeout", "180"]
+# sh -c so ${PORT} expands; exec so gunicorn is PID 1 and gets SIGTERM cleanly.
+CMD ["sh", "-c", "exec gunicorn --chdir backend app:app --bind 0.0.0.0:${PORT:-3000} --workers 1 --threads 2 --timeout 180"]
