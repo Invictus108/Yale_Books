@@ -17,7 +17,7 @@ import BioForm from "./components/BioForm.tsx";
 import Author from "./components/Author.tsx";
 
 export default function App() {
-  const [netid, setNetid] = useState(null);
+  const [netid, setNetid] = useState<string | null>(null);
 
   // check to see if user is logged in
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function App() {
 
   // redirect to login
   if (!netid) {
-    return ( <Login />)
+    return ( <Login onLogin={setNetid} />)
   } else {
     sessionStorage.setItem("netid", netid);
   }

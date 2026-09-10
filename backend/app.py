@@ -2,6 +2,7 @@ from flask import Flask, redirect, request, session
 import requests
 import xmltodict
 import os
+import re
 from urllib.parse import urlencode
 from flask_cors import CORS
 from extensions import db
@@ -20,6 +21,10 @@ load_dotenv()
 
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+# demo login mode - when true CAS is bypassed and users log in with just a NetID.
+# keep this false in production so the normal CAS flow is used.
+DEMO_LOGIN = os.getenv("DEMO_LOGIN", "false").strip().lower() in ("1", "true", "yes", "on")
 
 # init all api keys and connect database
 def create_app():
@@ -153,6 +158,39 @@ def whoami():
     user_id = User.query.filter_by(netid=user_netid).first().id
     return {"id": user_id}
 
+# lets the frontend know which login screen to show
+@app.route("/api/auth_mode")
+def auth_mode():
+    return {"demo": DEMO_LOGIN}
+
+# backup login for when CAS is down - NetID only, no password, demo use only
+@app.route("/demo_login", methods=["GET", "POST"])
+def demo_login():
+    if not DEMO_LOGIN:
+        return {"error": "Demo login is disabled"}, 404
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form
+        netid = data.get("netid") or ""
+    else:
+        netid = request.args.get("netid") or ""
+
+    netid = netid.strip().lower()
+
+    if not netid:
+        return {"error": "NetID is required"}, 400
+    if not re.fullmatch(r"[a-z0-9]{2,20}", netid):
+        return {"error": "That does not look like a NetID (letters and numbers only)"}, 400
+
+    add_new_user(netid)
+
+    # Store NetID in session, exactly like the CAS callback does
+    session["netid"] = netid
+
+    if request.method == "GET":
+        return redirect(FRONTEND_URL + "/")
+    return {"netid": netid}
+
 # redirect to login
 @app.route("/login")
 def login():
@@ -184,7 +222,7 @@ def login_callback():
 @app.route("/")
 def home():
     if "netid" not in session:
-        return redirect("/login")
+        return redirect(FRONTEND_URL + "/") if DEMO_LOGIN else redirect("/login")
     return f"Logged in as: {session['netid']}"
 
 # logout
