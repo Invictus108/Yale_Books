@@ -24,9 +24,31 @@ load_dotenv()
 # The frontend build is served by this same Flask app, so the browser talks to one
 # origin and there is no cross-site cookie or CORS problem to solve. Redirects below
 # are relative ("/") on purpose - nothing here can silently point at a dev host.
-FRONTEND_DIST = os.getenv(
-    "FRONTEND_DIST",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist"),
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_BACKEND_DIR)
+
+def _frontend_dist_candidates():
+    """Where the built frontend might live, most explicit first.
+
+    The layout differs by how the image is built: a repo-root Docker build puts
+    the backend in /app/backend and the build in /app/frontend/dist, while a
+    build with base directory 'backend' drops app.py at /app/app.py and has no
+    frontend at all. Checking a few places beats failing on one guess.
+    """
+    explicit = (os.getenv("FRONTEND_DIST") or "").strip()
+    if explicit:
+        return [explicit]
+    return [
+        os.path.join(_REPO_ROOT, "frontend", "dist"),   # repo checkout / root Docker build
+        os.path.join(_BACKEND_DIR, "frontend", "dist"), # frontend copied beside the backend
+        os.path.join(_BACKEND_DIR, "static"),           # build copied into backend/static
+        os.path.join(os.getcwd(), "frontend", "dist"),
+    ]
+
+FRONTEND_DIST_CANDIDATES = _frontend_dist_candidates()
+FRONTEND_DIST = next(
+    (d for d in FRONTEND_DIST_CANDIDATES if os.path.isfile(os.path.join(d, "index.html"))),
+    FRONTEND_DIST_CANDIDATES[0],
 )
 
 # Public origin of this service. Used for the CAS service URL and to decide whether
@@ -264,7 +286,14 @@ def serve_frontend(path=""):
     if not os.path.isfile(index):
         return {
             "error": "Frontend build not found",
-            "hint": f"run 'npm ci && npm run build' in frontend/ (looked in {FRONTEND_DIST})",
+            "checked": FRONTEND_DIST_CANDIDATES,
+            "app_file": os.path.abspath(__file__),
+            "cwd": os.getcwd(),
+            "hint": (
+                "The image has no built frontend. Build from the REPO ROOT (not "
+                "backend/) so the Dockerfile's node stage can run, or set "
+                "FRONTEND_DIST to where index.html actually is."
+            ),
         }, 503
 
     # a real file (assets, vite.svg, ...) -> serve it; anything else -> SPA entry point
