@@ -53,6 +53,7 @@
 /* LEFT COLUMN */
 .book-main {
   flex: 2;
+  min-width: 0; /* allow shrinking below content width */
 }
 
 /* RIGHT COLUMN */
@@ -73,6 +74,7 @@
 .book-title {
   margin: 0 0 0.5rem 0;
   font-size: 2rem;
+  overflow-wrap: anywhere;
 }
 
 .book-authors {
@@ -233,6 +235,16 @@
 .review-button {
   margin-top: 0.25rem;
   padding-inline: 1.5rem;
+}
+
+/* inline-flex buttons size to their content, so they can outgrow a narrow
+   column. Keep them inside it on small screens. */
+#book-page .primary-button,
+#book-page .secondary-button {
+  max-width: 100%;
+  /* without border-box, max-width caps the content box and padding is added
+     on top, pushing the button past its column */
+  box-sizing: border-box;
 }
 
 /* review text when already reviewed */

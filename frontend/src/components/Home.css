@@ -140,7 +140,7 @@
 }
 
 /* smaller title, single-line with ellipsis */
-.book-title {
+#home-page .book-title {
   font-size: 0.78rem;
   font-weight: 500;
   color: #00356b;
@@ -203,7 +203,7 @@
   }
 
   /* slightly smaller on mobile too */
-  .book-title {
+  #home-page .book-title {
     font-size: 0.74rem;
   }
 

@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, session, send_from_directory
+from flask import Flask, abort, redirect, request, session, send_from_directory
 import requests
 import xmltodict
 import os
@@ -13,6 +13,7 @@ import uuid
 import boto3
 import mimetypes
 from sqlalchemy import func, desc, case, text
+from sqlalchemy.exc import IntegrityError
 import numpy as np
 
 
@@ -194,6 +195,59 @@ def add_new_user(netid: str):
     db.session.commit()
 
 
+def get_or_create(model, **filters):
+    """Fetch a row, or insert it, tolerating a concurrent insert of the same row.
+
+    A plain SELECT-then-INSERT races: with more than one worker thread, two
+    requests can both see nothing and both insert, and the loser gets a
+    UniqueViolation. The savepoint lets the failed INSERT roll back on its own
+    without discarding the surrounding transaction.
+    """
+    instance = model.query.filter_by(**filters).first()
+    if instance is not None:
+        return instance
+    try:
+        with db.session.begin_nested():
+            instance = model(**filters)
+            db.session.add(instance)
+    except IntegrityError:
+        instance = model.query.filter_by(**filters).one()
+    return instance
+
+
+def or_404(instance, what="Record"):
+    if instance is None:
+        abort(404, description=f"{what} not found")
+    return instance
+
+
+def user_or_404(netid):
+    # A missing parameter is a bad request; a real netid that has no row is a 404.
+    if not netid:
+        abort(400, description="Missing required parameter: netid")
+    user = User.query.filter_by(netid=netid).first()
+    if user is None:
+        abort(404, description=f"Unknown user: {netid!r}")
+    return user
+
+
+def user_id_or_404(netid):
+    return user_or_404(netid).id
+
+
+def int_arg(name, required=True, default=None):
+    """Parse an int query arg without turning a bad value into a 500."""
+    raw = request.args.get(name)
+    if raw is None or raw == "":
+        if required:
+            abort(400, description=f"Missing required parameter: {name}")
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        abort(400, description=f"Parameter {name} must be an integer, got {raw!r}")
+
+
 def cosine_distance(column, vector):
     return column.op("<=>")(vector)
 
@@ -213,7 +267,7 @@ def me():
 @app.route("/api/whoami")
 def whoami():
     user_netid = request.args.get("user")
-    user_id = User.query.filter_by(netid=user_netid).first().id
+    user_id = user_id_or_404(user_netid)
     return {"id": user_id}
 
 # lets the frontend know which login screen to show
@@ -309,9 +363,9 @@ def logout():
 
 @app.route("/api/get_person")
 def get_person():
-    key = int(request.args.get("key"))
+    key = int_arg("key")
 
-    user = User.query.filter_by(id=key).first()
+    user = or_404(User.query.filter_by(id=key).first(), "User")
 
     return {
         "user": user.to_dict()
@@ -319,7 +373,7 @@ def get_person():
 
 @app.route("/api/get_user_reviews")
 def get_user_ratings():
-    user_id = int(request.args.get("key"))
+    user_id = int_arg("key")
 
     reviews = Review.query.filter_by(user_id=user_id).order_by(Review.updated_at.desc()).all()
 
@@ -412,41 +466,30 @@ def add_book():
     )
 
     db.session.add(book)
-    db.session.commit()  # commit so book.id exists
+    db.session.flush()  # assigns book.id without committing a half-built book
 
-    # authors
-    for name in authors_list:
-        author = Author.query.filter_by(name=name).first()
-        if not author:
-            author = Author(name=name)
-            db.session.add(author)
-            db.session.commit()
-        book.authors.append(author)
+    # authors - dict.fromkeys dedupes while preserving order
+    for name in dict.fromkeys(authors_list):
+        book.authors.append(get_or_create(Author, name=name))
 
-    # genres
-    for name in genres_list:
-        name = name.lower()
-        genre = Genre.query.filter_by(genre=name).first()
-        if not genre:
-            genre = Genre(genre=name)
-            db.session.add(genre)
-            db.session.commit()
-        book.genres.append(genre)
-    
+    # genres - normalised to lowercase, since genres.genre is unique
+    for name in dict.fromkeys(g.lower() for g in genres_list):
+        book.genres.append(get_or_create(Genre, genre=name))
+
     # increment user reputation by 10
-    user = request.form.get("netid")
-    user = User.query.filter_by(netid=user).first()
-    user.reputation += 10
+    user = user_or_404(request.form.get("netid"))
+    user.reputation = (user.reputation or 0) + 10
 
+    # single commit: either the whole book lands or none of it does
     db.session.commit()
 
     return {"success": True, "book_id": book.id}
 
 @app.route("/api/get_book")
 def get_book():
-    key = int(request.args.get("key"))
+    key = int_arg("key")
 
-    book = Books.query.filter_by(id=key).first()
+    book = or_404(Books.query.filter_by(id=key).first(), "Book")
 
     return {
         "book": book.to_dict()
@@ -454,7 +497,7 @@ def get_book():
 
 @app.route("/api/get_book_reviews")
 def get_book_reviews():
-    book_id = int(request.args.get("key"))
+    book_id = int_arg("key")
 
     reviews = Review.query.filter_by(book_id=book_id).order_by(Review.updated_at.desc()).all()
 
@@ -464,7 +507,7 @@ def get_book_reviews():
 
 @app.route("/api/get_authors")
 def get_authors():
-    book = int(request.args.get("key"))
+    book = int_arg("key")
 
     authors = Author.query.filter(Author.books.any(id=book)).all()
    
@@ -474,7 +517,7 @@ def get_authors():
 
 @app.route("/api/get_genres")
 def get_genres():
-    book = int(request.args.get("key"))
+    book = int_arg("key")
 
     genres = Genre.query.filter(Genre.books.any(id=book)).all()
 
@@ -484,13 +527,12 @@ def get_genres():
 
 @app.route("/api/is_friend")
 def is_friend():
-    user1 = int(request.args.get("user1"))
+    user1 = int_arg("user1")
     user2_netid = request.args.get("user2")
 
-    print(user1, user2_netid)
 
     # get user2 id
-    user2 = User.query.filter_by(netid=user2_netid).first().id
+    user2 = user_id_or_404(user2_netid)
 
     return {
         "is_friend": Follow.query.filter_by(follower_id=user2, followee_id=user1).first() is not None
@@ -503,15 +545,15 @@ def follow():
     user2_netid = data.get("follower")
 
     # get user2 id
-    user2 = User.query.filter_by(netid=user2_netid).first().id
+    user2 = user_id_or_404(user2_netid)
 
-    # increments follower and followee count
-    User.query.filter_by(id=user1).update({User.followers_count: User.followers_count + 1})
-    User.query.filter_by(id=user2).update({User.following_count: User.following_count + 1})
-
-    follow = Follow(follower_id=user2, followee_id=user1)
-    db.session.add(follow)
-    db.session.commit()
+    # following twice must not create a second row or double the counters
+    existing = Follow.query.filter_by(follower_id=user2, followee_id=user1).first()
+    if existing is None:
+        User.query.filter_by(id=user1).update({User.followers_count: User.followers_count + 1})
+        User.query.filter_by(id=user2).update({User.following_count: User.following_count + 1})
+        db.session.add(Follow(follower_id=user2, followee_id=user1))
+        db.session.commit()
 
     return {"success": True}
 
@@ -522,15 +564,14 @@ def unfollow():
     user2_netid = data.get("follower")
 
     # get user2 id
-    user2 = User.query.filter_by(netid=user2_netid).first().id
-
-    # decrement follower count
-    User.query.filter_by(id=user1).update({User.followers_count: User.followers_count - 1})
-    User.query.filter_by(id=user2).update({User.following_count: User.following_count - 1})
+    user2 = user_id_or_404(user2_netid)
 
     follow = Follow.query.filter_by(follower_id=user2, followee_id=user1).first()
-    db.session.delete(follow)
-    db.session.commit()
+    if follow is not None:  # already unfollowed - treat as success, counts untouched
+        User.query.filter_by(id=user1).update({User.followers_count: User.followers_count - 1})
+        User.query.filter_by(id=user2).update({User.following_count: User.following_count - 1})
+        db.session.delete(follow)
+        db.session.commit()
 
     return {"success": True}
 
@@ -538,7 +579,7 @@ def unfollow():
 def get_followers():
     user = request.args.get("key")
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     followers = Follow.query.filter_by(followee_id=user).all()
 
@@ -550,7 +591,7 @@ def get_followers():
 def get_following():
     user = request.args.get("key")
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     following = Follow.query.filter_by(follower_id=user).all()
 
@@ -561,11 +602,10 @@ def get_following():
 @app.route("/api/check_if_read")
 def check_if_read():
     user = request.args.get("user")
-    book = int(request.args.get("book"))
+    book = int_arg("book")
 
-    print(user)
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     exists = AlreadyRead.query.filter_by(user_id=user, book_id=book).first() is not None
 
@@ -580,10 +620,10 @@ def add_to_read():
     book = int(data.get("book"))
     
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
-    already_read = AlreadyRead(user_id=user, book_id=book)
-    db.session.add(already_read)
+    # unique on (user_id, book_id): adding twice must be a no-op, not a 500
+    get_or_create(AlreadyRead, user_id=user, book_id=book)
     db.session.commit()
 
     return {"success": True}
@@ -594,20 +634,21 @@ def remove_from_read():
     user = data.get("user")
     book = int(data.get("book"))
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     already_read = AlreadyRead.query.filter_by(user_id=user, book_id=book).first()
-    db.session.delete(already_read)
-    db.session.commit()
+    if already_read is not None:  # already removed - treat as success
+        db.session.delete(already_read)
+        db.session.commit()
 
     return {"success": True}
 
 @app.route("/api/check_if_wishlist")
 def check_if_wishlist():
     user = request.args.get("user")
-    book = int(request.args.get("book"))
+    book = int_arg("book")
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     exists = Wishlist.query.filter_by(user_id=user, book_id=book).first() is not None
 
@@ -622,10 +663,10 @@ def add_to_wishlist():
     book = int(data.get("book"))
     
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
-    already_read = Wishlist(user_id=user, book_id=book)
-    db.session.add(already_read)
+    # unique on (user_id, book_id): adding twice must be a no-op, not a 500
+    get_or_create(Wishlist, user_id=user, book_id=book)
     db.session.commit()
 
     return {"success": True}
@@ -636,11 +677,12 @@ def remove_from_wishlist():
     user = data.get("user")
     book = int(data.get("book"))
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     already_read = Wishlist.query.filter_by(user_id=user, book_id=book).first()
-    db.session.delete(already_read)
-    db.session.commit()
+    if already_read is not None:  # already removed - treat as success
+        db.session.delete(already_read)
+        db.session.commit()
 
     return {"success": True}
 
@@ -648,7 +690,7 @@ def remove_from_wishlist():
 def get_wishlist():
     user = request.args.get("key")
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     wishlist = Wishlist.query.filter_by(user_id=user).all()
 
@@ -656,7 +698,8 @@ def get_wishlist():
     # collect all book info
     for book in wishlist:
         book = Books.query.filter_by(id=book.book_id).first()
-        books.append(book.to_dict())
+        if book is not None:  # skip rows pointing at a deleted book
+            books.append(book.to_dict())
 
     return {
         "wishlist": books
@@ -666,7 +709,7 @@ def get_wishlist():
 def get_already_read():
     user = request.args.get("key")
 
-    user = User.query.filter_by(netid=user).first().id
+    user = user_id_or_404(user)
 
     already_read = AlreadyRead.query.filter_by(user_id=user).all()
 
@@ -675,7 +718,8 @@ def get_already_read():
     # collect all book info
     for book in already_read:
         book = Books.query.filter_by(id=book.book_id).first()
-        books.append(book.to_dict())
+        if book is not None:  # skip rows pointing at a deleted book
+            books.append(book.to_dict())
 
     return {
         "already_read": books
@@ -684,9 +728,9 @@ def get_already_read():
 @app.route("/api/check_already_reviewed")
 def check_already_review():
     user_netid = request.args.get("user")
-    book = int(request.args.get("book"))
+    book = int_arg("book")
 
-    user_id = User.query.filter_by(netid=user_netid).first().id
+    user_id = user_id_or_404(user_netid)
 
     exists = Review.query.filter_by(user_id=user_id, book_id=book).first() is not None
 
@@ -702,14 +746,14 @@ def add_review():
     review = data.get("review")
     rating = int(data.get("rating"))
 
-    user_id = User.query.filter_by(netid=user).first().id
+    user_id = user_id_or_404(user)
 
     # increment reputation by 5
-    user = User.query.filter_by(id=user_id).first()
-    user.reputation += 5
+    user = or_404(User.query.filter_by(id=user_id).first(), "User")
+    user.reputation = (user.reputation or 0) + 5
 
     # update average rating and num of ratings and views of books
-    book = Books.query.filter_by(id=book_id).first()
+    book = or_404(Books.query.filter_by(id=book_id).first(), "Book")
     book.average_rating = (book.average_rating * book.num_ratings + rating) / (book.num_ratings + 1)
     book.num_ratings += 1
     book.num_reviews += 1
@@ -776,7 +820,7 @@ def update_bio():
     user = data.get("user")
     bio = data.get("bio")
 
-    user = User.query.filter_by(netid=user).first()
+    user = user_or_404(user)
     user_id = user.id
     user.bio = bio
 
@@ -850,7 +894,6 @@ def delete_review():
 def get_author_books():
     author_name = request.args.get("name")
 
-    print(author_name)
 
     books = Books.query.filter(Books.authors.any(name=author_name)).all()
 
@@ -878,7 +921,6 @@ def search_people():
     following = following == "true"
     followers = followers == "true"
 
-    print(f"key: {key}, following: {following}, followers: {followers}, user_netid: {user_netid}")
 
     # Normalize key
     if key:
@@ -1010,9 +1052,8 @@ def search_books():
     already_read = request.args.get("alreadyRead", None)
     wishlist = request.args.get("wishlist", None)
 
-    user_id = User.query.filter_by(netid=user_netid).first().id
+    user_id = user_id_or_404(user_netid)
 
-    print(genres)
 
     # convert from strings to bools
     following = following == "true"

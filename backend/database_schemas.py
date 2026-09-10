@@ -4,8 +4,29 @@ import os
 from dotenv import load_dotenv
 from botocore.client import Config
 from pgvector.sqlalchemy import Vector
+from threading import Lock
 
 load_dotenv()
+
+FILEBASE_ENDPOINT = "https://s3.filebase.com"
+
+_s3_client = None
+_s3_lock = Lock()
+
+
+def get_s3_client():
+    """One shared client. Building one per book made a 50-book listing build 50."""
+    global _s3_client
+    with _s3_lock:
+        if _s3_client is None:
+            _s3_client = boto3.client(
+                "s3",
+                endpoint_url=FILEBASE_ENDPOINT,
+                aws_access_key_id=os.getenv("FILEBASE_ACCESS_KEY"),
+                aws_secret_access_key=os.getenv("FILEBASE_SECRET_KEY"),
+                config=Config(signature_version="s3v4"),
+            )
+    return _s3_client
 # ============================
 # Association Tables
 # ============================
@@ -154,23 +175,18 @@ class Books(db.Model):
     )
 
     def generate_presigned_url(self, object_name, bucket_name = "yalebookcovers", expires_in=3600):
-        FILEBASE_ENDPOINT = "https://s3.filebase.com"
-
-        s3 = boto3.client(
-            "s3",
-            endpoint_url="https://s3.filebase.com",
-            aws_access_key_id=os.getenv("FILEBASE_ACCESS_KEY"),
-            aws_secret_access_key=os.getenv("FILEBASE_SECRET_KEY"),
-            config=Config(signature_version="s3v4"),
-        )
-
-        url = s3.generate_presigned_url(
-            ClientMethod="get_object",
-            Params={"Bucket": bucket_name, "Key": object_name},
-            ExpiresIn=expires_in,
-        )
-
-        return url
+        # A book with no cover, or missing Filebase credentials, must not take
+        # down every endpoint that lists books.
+        if not object_name:
+            return None
+        try:
+            return get_s3_client().generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": bucket_name, "Key": object_name},
+                ExpiresIn=expires_in,
+            )
+        except Exception:
+            return None
 
     # convert to dict for simple api calls
     def to_dict(self):
@@ -267,8 +283,10 @@ class Wishlist(db.Model):
     __table_args__ = (db.UniqueConstraint("user_id", "book_id"),)
 
     def to_dict(self):
+        # book_id is an Integer column, not a Books instance
+        book = db.session.get(Books, self.book_id)
         return {
-            "book": self.book_id.to_dict()
+            "book": book.to_dict() if book else None
         }
 
 # ============================
@@ -285,8 +303,10 @@ class AlreadyRead(db.Model):
     __table_args__ = (db.UniqueConstraint("user_id", "book_id"),)
 
     def to_dict(self):
+        # book_id is an Integer column, not a Books instance
+        book = db.session.get(Books, self.book_id)
         return {
-            "book": self.book_id.to_dict()
+            "book": book.to_dict() if book else None
         }
 
 
