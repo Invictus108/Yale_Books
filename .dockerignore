@@ -1,0 +1,17 @@
+.git
+.gitignore
+**/node_modules
+frontend/dist
+.firebase
+firebase.json
+firebase.json.bak
+.firebaserc
+render.yaml
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.env
+**/.cache
+*.tsbuildinfo
+notes.txt
+hosting.txt

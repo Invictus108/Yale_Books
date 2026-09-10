@@ -11,8 +11,9 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # first origin is the canonical redirect target; the rest are CORS-allowed too
       - key: FRONTEND_URL
-        value: https://yalebooks-be079.web.app
+        value: https://yalebooks-be079.web.app,https://yalebooks-be079.firebaseapp.com
       # set to "true" to bypass CAS and use the NetID-only demo login
       - key: DEMO_LOGIN
         value: "false"

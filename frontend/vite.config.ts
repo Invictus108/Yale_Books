@@ -13,7 +13,8 @@ export default defineConfig({
       },
       "/login": "http://localhost:5000",
       "/logout": "http://localhost:5000",
-      "/login_callback": "http://localhost:5000"
+      "/login_callback": "http://localhost:5000",
+      "/demo_login": "http://localhost:5000"
     }
   },
 });

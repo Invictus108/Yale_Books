@@ -1,10 +1,11 @@
-from flask import Flask, redirect, request, session
+from flask import Flask, redirect, request, session, send_from_directory
 import requests
 import xmltodict
 import os
 import re
 from urllib.parse import urlencode
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db
 from dotenv import load_dotenv
 from embeddings import get_model
@@ -20,7 +21,33 @@ load_dotenv()
 
 
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+# The frontend build is served by this same Flask app, so the browser talks to one
+# origin and there is no cross-site cookie or CORS problem to solve. Redirects below
+# are relative ("/") on purpose - nothing here can silently point at a dev host.
+FRONTEND_DIST = os.getenv(
+    "FRONTEND_DIST",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist"),
+)
+
+# Public origin of this service. Used for the CAS service URL and to decide whether
+# the session cookie can be marked Secure.
+def _public_origin():
+    # ORIGIN wins; otherwise take whatever the platform injects. Coolify sets
+    # COOLIFY_URL / COOLIFY_FQDN (FQDN may arrive without a scheme).
+    for key in ("ORIGIN", "COOLIFY_URL", "COOLIFY_FQDN", "RENDER_EXTERNAL_URL"):
+        value = (os.getenv(key) or "").strip()
+        if value:
+            if not value.startswith(("http://", "https://")):
+                value = "https://" + value
+            return value.rstrip("/")
+    return "http://localhost:5000"
+
+PUBLIC_ORIGIN = _public_origin()
+
+# Only needed if a frontend is still hosted somewhere else (e.g. during a migration
+# off Firebase). Same-origin deployments can leave this unset. Comma-separated.
+_extra_origins = os.getenv("FRONTEND_URL", "")
+ALLOWED_ORIGINS = [u.strip().rstrip("/") for u in _extra_origins.split(",") if u.strip()]
 
 # demo login mode - when true CAS is bypassed and users log in with just a NetID.
 # keep this false in production so the normal CAS flow is used.
@@ -28,19 +55,28 @@ DEMO_LOGIN = os.getenv("DEMO_LOGIN", "false").strip().lower() in ("1", "true", "
 
 # init all api keys and connect database
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=None)
+    # Behind Coolify's reverse proxy TLS is terminated upstream, so honour
+    # X-Forwarded-* instead of trusting the container's own http scheme.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     app.secret_key = os.getenv("SESSION_SECRET") # for signing cookies
     if not app.secret_key:
         raise RuntimeError("SESSION_SECRET must be set")
+    # First-party cookie now that the app and API share an origin: Lax is enough,
+    # and it is not subject to third-party cookie blocking the way SameSite=None is.
     app.config.update(
-        SESSION_COOKIE_SECURE=FRONTEND_URL.startswith("https://"),
-        SESSION_COOKIE_SAMESITE="None" if FRONTEND_URL.startswith("https://") else "Lax",
+        SESSION_COOKIE_SECURE=PUBLIC_ORIGIN.startswith("https://"),
+        SESSION_COOKIE_SAMESITE="Lax",
     )
-    CORS(app,
-        supports_credentials=True,
-        origins=[FRONTEND_URL],
-        methods=["GET", "POST"]
-    )
+
+    # Same-origin requests need no CORS at all; this only covers a separately
+    # hosted frontend, and is a no-op when FRONTEND_URL is unset.
+    if ALLOWED_ORIGINS:
+        CORS(app,
+            supports_credentials=True,
+            origins=ALLOWED_ORIGINS,
+            methods=["GET", "POST"]
+        )
 
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -84,7 +120,7 @@ CAS_LOGIN_URL = "https://secure-tst.its.yale.edu/cas/login" # remove -tst fot pr
 CAS_VALIDATE_URL = "https://secure-tst.its.yale.edu/cas/p3/serviceValidate"
 
 # callback URL 
-SERVICE_URL = os.getenv("ORIGIN", os.getenv("RENDER_EXTERNAL_URL", "http://localhost:5000")).rstrip("/") + "/login_callback"
+SERVICE_URL = PUBLIC_ORIGIN + "/login_callback"
 
 # helpers
 def parse_cas_response(xml_text: str):
@@ -188,7 +224,7 @@ def demo_login():
     session["netid"] = netid
 
     if request.method == "GET":
-        return redirect(FRONTEND_URL + "/")
+        return redirect("/")
     return {"netid": netid}
 
 # redirect to login
@@ -216,20 +252,31 @@ def login_callback():
     # Store NetID in session
     session["netid"] = netid
 
-    return redirect(FRONTEND_URL + "/")
+    return redirect("/")
 
-# main index
+# Serve the built React app. The explicit rules above (/api/*, /login, /logout,
+# /login_callback, /demo_login, /healthz) still win because Werkzeug ranks static
+# rules above the <path:> converter, so this only catches frontend routes.
 @app.route("/")
-def home():
-    if "netid" not in session:
-        return redirect(FRONTEND_URL + "/") if DEMO_LOGIN else redirect("/login")
-    return f"Logged in as: {session['netid']}"
+@app.route("/<path:path>")
+def serve_frontend(path=""):
+    index = os.path.join(FRONTEND_DIST, "index.html")
+    if not os.path.isfile(index):
+        return {
+            "error": "Frontend build not found",
+            "hint": f"run 'npm ci && npm run build' in frontend/ (looked in {FRONTEND_DIST})",
+        }, 503
+
+    # a real file (assets, vite.svg, ...) -> serve it; anything else -> SPA entry point
+    if path and os.path.isfile(os.path.join(FRONTEND_DIST, path)):
+        return send_from_directory(FRONTEND_DIST, path)
+    return send_from_directory(FRONTEND_DIST, "index.html")
 
 # logout
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(FRONTEND_URL + "/")
+    return redirect("/")
 
 @app.route("/api/get_person")
 def get_person():
