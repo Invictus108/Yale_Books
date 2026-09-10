@@ -13,7 +13,7 @@ import uuid
 import boto3
 import mimetypes
 from sqlalchemy import func, desc, case, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import numpy as np
 
 
@@ -108,6 +108,31 @@ def create_app():
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    # Pooled connections go stale: the database, or anything between us and it,
+    # can drop an idle connection, and the next request then fails with
+    # "SSL connection has been closed unexpectedly" on its very first query.
+    # pool_pre_ping cheaply validates a connection before handing it out and
+    # transparently replaces a dead one; pool_recycle retires connections before
+    # the usual idle timeouts; TCP keepalives stop the network dropping them.
+    engine_options = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+    }
+    if database_url.startswith("postgresql"):
+        engine_options.update({
+            "pool_size": 5,
+            "max_overflow": 5,
+            "pool_timeout": 30,
+            "connect_args": {
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            },
+        })
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
 
     db.init_app(app)
     
@@ -254,8 +279,21 @@ def cosine_distance(column, vector):
 # identity route to check if user is logged in
 @app.route("/healthz")
 def health():
-    db.session.execute(text("SELECT 1"))
+    try:
+        db.session.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("health check: database unreachable")
+        return {"status": "error", "database": "unreachable"}, 503
     return {"status": "ok"}
+
+
+@app.errorhandler(SQLAlchemyError)
+def handle_db_error(err):
+    """A dropped connection should not surface as an HTML 500 to an axios call."""
+    db.session.rollback()
+    app.logger.exception("database error")
+    return {"error": "Database temporarily unavailable, please retry"}, 503
 
 
 @app.route("/api/me")
