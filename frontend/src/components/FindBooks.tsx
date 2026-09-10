@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { BookData } from '../types';
 import './FindBooks.css'
 import NavBar from './NavBar.tsx';
@@ -11,7 +12,7 @@ export default function FindBooks() {
 
     // update on query
     useEffect(() => {
-        axios.get("/api/get_recommendations", {params: {user: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.books));
+        axios.get("/api/get_recommendations", {params: {user: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.books)).catch((e) => console.error("request failed", e));
     }, []);
 
 
@@ -38,7 +39,8 @@ export default function FindBooks() {
                         <div className="recommended-card">
                             <div className="recommended-cover-wrapper">
                                 <img
-                                    src={book.cover_url}
+                                    src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                                     alt={`${book.title} cover`}
                                     className="recommended-cover"
                                 />

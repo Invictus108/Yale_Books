@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { BookData } from '../types';
 import './Home.css'
 import NavBar from './NavBar.tsx';
@@ -11,7 +12,9 @@ export default function Home() {
     useEffect(() => {
         axios.get("/api/get_recommendations", {
             params: { user: sessionStorage.getItem("netid") }
-        }).then((res) => setBooks(res.data.books));
+        })
+            .then((res) => setBooks(res.data.books ?? []))
+            .catch((e) => { console.error("recommendations failed", e); setBooks([]); });
     }, []);
 
     return (
@@ -33,7 +36,8 @@ export default function Home() {
                                 <div className="book-card">
 
                                     <img 
-                                        src={book.cover_url}
+                                        src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                                         alt={`${book.title} cover`}
                                         className="book-cover"
                                     />

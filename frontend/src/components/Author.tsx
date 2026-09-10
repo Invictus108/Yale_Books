@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { BookData } from '../types';
 import './Author.css'
 import NavBar from './NavBar.tsx';
@@ -13,8 +14,12 @@ export default function Author() {
 
     // update on query
     useEffect(() => {
-        axios.get("/api/get_author_books", {params: {name: author}}).then((res) => setBooks(res.data.books));
-    }, []);
+        let cancelled = false;
+        axios.get("/api/get_author_books", {params: {name: author}})
+            .then((res) => { if (!cancelled) setBooks(res.data.books ?? []); })
+            .catch(() => { if (!cancelled) setBooks([]); });
+        return () => { cancelled = true; };
+    }, [author]);
 
 
 
@@ -43,7 +48,8 @@ export default function Author() {
                             <div className="author-book-card">
                                 <div className="author-book-cover-wrapper">
                                     <img
-                                        src={book.cover_url}
+                                        src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                                         alt={`${book.title} cover`}
                                         className="author-book-cover"
                                     />

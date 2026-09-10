@@ -13,7 +13,7 @@ export default function People() {
 
     // update on query
     useEffect(() => {
-        axios.get("/api/search_people", {params: {search: query, following: following, followers: followers, user: sessionStorage.getItem("netid")}}).then((res) => setPeople(res.data.users));
+        axios.get("/api/search_people", {params: {search: query, following: following, followers: followers, user: sessionStorage.getItem("netid")}}).then((res) => setPeople(res.data.users)).catch((e) => console.error("request failed", e));
     }, [query, following, followers]);
 
     return (

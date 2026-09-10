@@ -14,6 +14,16 @@ export default function Login({ onLogin }: LoginProps){
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
+    // surface a failed CAS round trip (backend redirects to /?login_error=...)
+    useEffect(() => {
+        const reason = new URLSearchParams(window.location.search).get("login_error");
+        if (reason === "cas_unavailable") {
+            setError("Yale CAS could not be reached. Use the NetID login below.");
+        } else if (reason === "missing_ticket") {
+            setError("CAS did not return a login ticket. Please try again.");
+        }
+    }, []);
+
     // ask the backend whether CAS is on or we are in demo mode
     useEffect(() => {
         axios.get("/api/auth_mode")
@@ -58,6 +68,8 @@ export default function Login({ onLogin }: LoginProps){
     <p className="not-logged-text">
       Please log in with your Yale CAS account to access Yale Books.
     </p>
+
+    {error && <p className="demo-login-error">{error}</p>}
 
     <button
       className="primary-button not-logged-button"

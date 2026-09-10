@@ -6,9 +6,6 @@
 #
 #   Regenerate before deploying frontend changes:
 #     cd frontend && npm run build:backend
-#
-# To build the frontend during the image build instead, set Base Directory to /
-# and use the Dockerfile at the repo root, which has a node stage.
 
 FROM python:3.12-slim
 
@@ -28,6 +25,10 @@ COPY . .
 # download. Needs ~1GB of build RAM; drop this line if the build host is small
 # and accept a slow (or failing) first embedding request instead.
 RUN python -c "from embeddings import get_model; get_model()"
+
+# CAS is unavailable, so the NetID demo login is the default for this
+# deployment. Set DEMO_LOGIN=false in Coolify once CAS works again.
+ENV DEMO_LOGIN=true
 
 ENV PORT=3000
 EXPOSE 3000

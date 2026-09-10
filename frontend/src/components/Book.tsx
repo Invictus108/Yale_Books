@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { AuthorData, BookData, GenreData, ReviewData } from '../types';
 import './Book.css'
 import { useParams, useNavigate } from "react-router-dom"
@@ -19,14 +20,26 @@ export default function Book() {
 
 
     useEffect(() => {
-        axios.get("/api/get_book", {params: {key: id}}).then((res) => setBook(res.data.book));
-        axios.get("/api/get_book_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews));
-        axios.get("/api/get_authors", {params: {key: id}}).then((res) => setAuthors(res.data.authors));
-        axios.get("/api/get_genres", {params: {key: id}}).then((res) => setGenres(res.data.genres));
-        axios.get("/api/check_if_read", {params: {book: id, user: sessionStorage.getItem("netid")}}).then((res) => setAlreadyRead(res.data.exists));
-        axios.get("/api/check_if_wishlist", {params: {book: id, user: sessionStorage.getItem("netid")}}).then((res) => setWishlist(res.data.exists));
-        axios.get("/api/check_already_reviewed", {params: {book: id, user: sessionStorage.getItem("netid")}}).then((res) => setAlreadyReviewed(res.data.exists));
-    }, []);
+        let cancelled = false;
+        const netid = sessionStorage.getItem("netid");
+        const set = <T,>(fn: (v: T) => void, fallback: T) => (res: any, key: string) => {
+            if (!cancelled) fn(res?.data?.[key] ?? fallback);
+        };
+        const get = (url: string, params: any, key: string, apply: (v: any) => void, fallback: any) =>
+            axios.get(url, { params })
+                .then((res) => set(apply, fallback)(res, key))
+                .catch(() => { if (!cancelled) apply(fallback); });
+
+        get("/api/get_book", {key: id}, "book", setBook, null);
+        get("/api/get_book_reviews", {key: id}, "reviews", setReviews, []);
+        get("/api/get_authors", {key: id}, "authors", setAuthors, []);
+        get("/api/get_genres", {key: id}, "genres", setGenres, []);
+        get("/api/check_if_read", {book: id, user: netid}, "exists", setAlreadyRead, false);
+        get("/api/check_if_wishlist", {book: id, user: netid}, "exists", setWishlist, false);
+        get("/api/check_already_reviewed", {book: id, user: netid}, "exists", setAlreadyReviewed, false);
+
+        return () => { cancelled = true; };
+    }, [id]);
 
     const handleAddAlreadyRead = () => {
         axios
@@ -171,7 +184,8 @@ export default function Book() {
         <aside className="book-side">
             <div className="book-cover-card">
                 <img
-                    src={book.cover_url}
+                    src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                     alt={`${book.title} cover`}
                     className="book-cover-image"
                 />

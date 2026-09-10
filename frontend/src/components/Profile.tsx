@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { ReviewData, UserData } from '../types';
 import './Profile.css'
 import NavBar from './NavBar.tsx';
@@ -10,7 +11,7 @@ export default function Profile() {
 
     // get user id
     useEffect(() => {
-        axios.get("/api/whoami", {params: {user: sessionStorage.getItem("netid")}}).then((res) => setId(res.data.id));
+        axios.get("/api/whoami", {params: {user: sessionStorage.getItem("netid")}}).then((res) => setId(res.data.id)).catch((e) => console.error("request failed", e));
     }, []); 
 
     const [reviews, setReviews] = useState<ReviewData[]>([]);
@@ -19,16 +20,16 @@ export default function Profile() {
 
     useEffect(() => {
         if (!id) return;
-        axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user));
-        axios.get("/api/get_user_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews));
+        axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user)).catch((e) => console.error("request failed", e));
+        axios.get("/api/get_user_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews)).catch((e) => console.error("request failed", e));
     }, [id]);
 
 
     const handleDelete = (review_id: number) => {
         console.log(review_id);
         axios.post("/api/delete_review",  {id: review_id}).then(() => {
-            axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user));
-            axios.get("/api/get_user_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews));  
+            axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user)).catch((e) => console.error("request failed", e));
+            axios.get("/api/get_user_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews)).catch((e) => console.error("request failed", e));
         })
         
     }
@@ -100,7 +101,8 @@ export default function Profile() {
                                 >
                                     <div className="profile-review-cover-wrapper">
                                         <img
-                                            src={review.book.cover_url}
+                                            src={coverSrc(review.book.cover_url)}
+                                        onError={onCoverError}
                                             alt={`${review.book.title} cover`}
                                             className="profile-review-cover"
                                         />

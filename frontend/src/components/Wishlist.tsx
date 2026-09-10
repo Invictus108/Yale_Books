@@ -10,7 +10,7 @@ export default function Wishlist() {
     const [books, setBooks] = useState<BookData[]>([]);
 
     useEffect(() => {
-        axios.get("/api/get_wishlist", {params: {key: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.wishlist));
+        axios.get("/api/get_wishlist", {params: {key: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.wishlist)).catch((e) => console.error("request failed", e));
     }, []);
 
     return (

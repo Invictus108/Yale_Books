@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { BookData } from '../types';
 import './AlreadyRead.css'
 import NavBar from './NavBar.tsx';
@@ -9,7 +10,7 @@ export default function AlreadyRead() {
     const [books, setBooks] = useState<BookData[]>([]);
 
     useEffect(() => {
-        axios.get("/api/get_already_read", {params: {key: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.already_read));
+        axios.get("/api/get_already_read", {params: {key: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.already_read)).catch((e) => console.error("request failed", e));
     }, []);
 
     return (
@@ -34,7 +35,8 @@ export default function AlreadyRead() {
                         <div className="already-card">
                             <div className="already-cover-wrapper">
                                 <img
-                                    src={book.cover_url}
+                                    src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                                     alt={`${book.title} cover`}
                                     className="already-cover"
                                 />

@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { ReviewData, UserData } from '../types';
 import './Person.css'
 import { useParams, useNavigate } from "react-router-dom"
@@ -15,14 +16,20 @@ export default function Book() {
 
 
     useEffect(() => {
-        axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user));
-        axios.get("/api/get_user_reviews", {params: {key: id}}).then((res) => setReviews(res.data.reviews));
-        axios.get("/api/is_friend", {params: {user1: id, user2: sessionStorage.getItem("netid")}}).then((res) => setFollow(res.data.is_friend));
-    }, []);
+        let cancelled = false;
+        axios.get("/api/get_person", {params: {key: id}})
+            .then((res) => { if (!cancelled) setUser(res.data.user); }).catch(() => {});
+        axios.get("/api/get_user_reviews", {params: {key: id}})
+            .then((res) => { if (!cancelled) setReviews(res.data.reviews ?? []); })
+            .catch(() => { if (!cancelled) setReviews([]); });
+        axios.get("/api/is_friend", {params: {user1: id, user2: sessionStorage.getItem("netid")}})
+            .then((res) => { if (!cancelled) setFollow(res.data.is_friend); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [id]);
 
     // update follow count as it changes
     useEffect(() => {
-        axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user));
+        axios.get("/api/get_person", {params: {key: id}}).then((res) => setUser(res.data.user)).catch((e) => console.error("request failed", e));
     }, [follow]);
 
     // follow and unfollow handlers
@@ -119,7 +126,8 @@ export default function Book() {
                             <div className="profile-review-card">
                                 <div className="profile-review-cover-wrapper">
                                     <img
-                                        src={review.book.cover_url}
+                                        src={coverSrc(review.book.cover_url)}
+                                        onError={onCoverError}
                                         alt={`${review.book.title} cover`}
                                         className="profile-review-cover"
                                     />

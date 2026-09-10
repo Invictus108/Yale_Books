@@ -9,24 +9,66 @@ The app focuses on:
 - Simple flows for **adding**, **finding**, and **tracking** books
 - Social features limited to the Yale community (netid-based)
 
-## Deploy the backend to Render
+## Deployment (Coolify)
 
-The repository includes `render.yaml` for the Python API; the frontend is hosted separately on Firebase. For an existing manually configured Render service, set:
+One deployment path, so nothing can disagree with anything else: a single
+container built from `backend/Dockerfile` serves both the API and the frontend
+from the same origin.
 
-- Root directory: `backend`
-- Python: `3.12` via `.python-version`. Remove any conflicting `PYTHON_VERSION` environment override (or set it to a released 3.12 patch version).
-- Build command: `pip install -r requirements.txt && python -c "from embeddings import get_model; get_model()"`
-- Start command: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 180`
-- Health check: `/healthz`
-- Environment: `DATABASE_URL` (PostgreSQL), `SESSION_SECRET` (a random secret), `FRONTEND_URL=https://yalebooks-be079.web.app`, `FILEBASE_ACCESS_KEY`, and `FILEBASE_SECRET_KEY`.
-- Set `HF_HOME=/opt/render/project/src/backend/.cache/huggingface` in both build and runtime so downloaded model files are included in the deployment. `ORIGIN` can override the backend public URL; otherwise Render's `RENDER_EXTERNAL_URL` is used.
+Coolify settings:
 
-Python 3.12 supports the pinned CPU PyTorch wheels. The model downloads during the build and loads on the first embedding request, so health checks do not wait for ML initialization. One worker avoids duplicate model copies; the service still needs enough RAM to load PyTorch and the model when recommendation requests arrive.
+| Field | Value |
+| --- | --- |
+| Build Pack | Dockerfile |
+| Base Directory | `backend` |
+| Dockerfile Location | `Dockerfile` |
+| Build / Start Command | *(empty - the Dockerfile supplies both)* |
+| Ports Exposes | `3000` |
+| Health Check Path | `/healthz` |
 
-For a database created before the pgvector changes, back it up and run `backend/migrations/001_vector_embeddings.sql` once before deploying. This preserves embeddings while converting the old array column and adding the user vector column. Existing vectors must contain 384 elements. New databases enable the `vector` extension before creating tables; the database role must have permission to enable it. `create_all()` does not migrate existing columns.
+Environment variables: `DATABASE_URL`, `SESSION_SECRET`, `ORIGIN=https://your-domain`,
+`FILEBASE_ACCESS_KEY`, `FILEBASE_SECRET_KEY`. `DEMO_LOGIN` defaults to `true` in the
+image while CAS is down; set it to `false` in Coolify to restore CAS-only login.
 
-For the frontend, run `npm ci` then `npm run build` from `frontend`. Production builds default to `https://yale-books.onrender.com`; set `VITE_API_URL` at build time for another backend. Local development defaults to `http://localhost:5000`. Login/logout links use the same backend URL. The CAS endpoints still point to Yale's test CAS service; use the institution-approved production CAS configuration when going live.
+Because the build context is `backend/`, the frontend cannot be built inside the
+image. **Rebuild it before any deploy carrying UI changes:**
 
-Run offline backend startup checks from `backend` with `python -m unittest test_deployment`. These use SQLite with schema creation mocked; they do not validate the production PostgreSQL schema or download the ML model.
+```
+cd frontend && npm run build:backend      # writes ../backend/static
+```
 
-Render references: [Python versions](https://render.com/docs/python-version), [Blueprint settings](https://render.com/docs/blueprint-spec), and [Postgres extensions](https://render.com/docs/postgresql-extensions).
+Then commit `backend/static/` along with your changes.
+
+### Same-origin serving
+
+Flask serves `backend/static` for any path its own routes do not claim, falling
+back to `index.html` so client-side routes work on refresh. Because the app and
+API share an origin, the session cookie is first-party (`SameSite=Lax`) and no
+CORS configuration is needed. All post-login redirects are relative.
+
+### Database
+
+New databases: `create_all()` builds the schema, and the `vector` extension is
+enabled at startup, so the Postgres role needs permission to run
+`CREATE EXTENSION vector`.
+
+Existing databases predating the pgvector change: `create_all()` does **not**
+migrate existing tables. Back up, then run `backend/migrations/001_vector_embeddings.sql`
+once before deploying. Existing book embeddings must contain exactly 384 values;
+the migration runs in a transaction and rolls back if they do not.
+
+### Notes
+
+- The embedding model loads lazily and needs roughly 800 MB resident once a
+  recommendation, review, or bio request touches it. Size the host accordingly.
+- CAS still points at Yale's **test** endpoints (`secure-tst.its.yale.edu`). The
+  service URL is derived from `ORIGIN` and must match exactly what Yale ITS has
+  registered. A CAS failure redirects to `/?login_error=...` rather than 500ing.
+- Offline startup checks: `cd backend && python -m unittest test_deployment`.
+
+## Local development
+
+```
+cd backend  && python app.py          # http://localhost:5000
+cd frontend && npm run dev            # http://localhost:5173, proxies to :5000
+```

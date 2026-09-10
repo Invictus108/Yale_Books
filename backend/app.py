@@ -182,7 +182,7 @@ def validate_ticket(ticket: str) -> str:
         "service": SERVICE_URL,
     }
 
-    resp = requests.get(CAS_VALIDATE_URL, params=params)
+    resp = requests.get(CAS_VALIDATE_URL, params=params, timeout=10)
     data = parse_cas_response(resp.text)
 
     sr = data.get("cas:serviceResponse", {})
@@ -218,6 +218,121 @@ def add_new_user(netid: str):
     
     db.session.add(new_user)
     db.session.commit()
+
+
+EMBEDDING_DIM = 384
+
+
+def json_body():
+    """Parse a JSON object body, 400 instead of 500 on anything malformed."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400, description="Expected a JSON object request body")
+    return data
+
+
+def body_int(data, key, minimum=None, maximum=None):
+    raw = data.get(key)
+    if raw is None or raw == "":
+        abort(400, description=f"Missing required field: {key}")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        abort(400, description=f"Field {key} must be an integer, got {raw!r}")
+    if minimum is not None and value < minimum:
+        abort(400, description=f"Field {key} must be at least {minimum}")
+    if maximum is not None and value > maximum:
+        abort(400, description=f"Field {key} must be at most {maximum}")
+    return value
+
+
+def body_str(data, key, required=True, max_length=None):
+    raw = data.get(key)
+    if raw is None:
+        raw = ""
+    if not isinstance(raw, str):
+        abort(400, description=f"Field {key} must be a string")
+    raw = raw.strip()
+    if required and not raw:
+        abort(400, description=f"Field {key} must not be empty")
+    if max_length is not None and len(raw) > max_length:
+        abort(400, description=f"Field {key} must be at most {max_length} characters")
+    return raw
+
+
+def normalize_vector(vector):
+    """L2-normalise. A zero or non-finite norm yields NaNs, which then poison
+    every pgvector distance query, so fall back to a zero vector instead."""
+    array = np.asarray(vector, dtype=float)
+    norm = float(np.linalg.norm(array))
+    if not np.isfinite(norm) or norm == 0.0:
+        return np.zeros(EMBEDDING_DIM)
+    result = array / norm
+    if not np.all(np.isfinite(result)):
+        return np.zeros(EMBEDDING_DIM)
+    return result
+
+
+def encode_text(text):
+    """Embed text, or None when there is nothing meaningful to embed."""
+    if not text or not text.strip():
+        return None
+    return np.asarray(get_model().encode(text.strip()), dtype=float)
+
+
+def refresh_book_stats(book):
+    """Recompute a book's rating aggregates from the reviews table.
+
+    Manual += / -= drifts out of sync and divides by zero when the last review
+    is removed. Deriving the numbers is always correct.
+    """
+    num_ratings, avg_rating = (
+        db.session.query(func.count(Review.id), func.avg(Review.rating))
+        .filter(Review.book_id == book.id)
+        .one()
+    )
+    num_reviews = (
+        db.session.query(func.count(Review.id))
+        .filter(Review.book_id == book.id)
+        .filter(Review.review.isnot(None))
+        .filter(func.length(func.trim(Review.review)) > 0)
+        .scalar()
+    )
+    book.num_ratings = int(num_ratings or 0)
+    book.num_reviews = int(num_reviews or 0)
+    book.average_rating = float(avg_rating) if avg_rating is not None else 0.0
+
+
+def rebuild_user_embedding(user):
+    """Blend the user's bio with their recent highly-rated books."""
+    past_good = (
+        db.session.query(Books.embedding)
+        .join(Review, Review.book_id == Books.id)
+        .filter(Review.user_id == user.id)
+        .filter(Review.rating >= 4)
+        .order_by(Review.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+    past_vectors = [row.embedding for row in past_good if row.embedding is not None]
+
+    book_vec = np.mean(np.array(past_vectors, dtype=float), axis=0) if past_vectors else None
+    bio_vec = encode_text(user.bio)
+
+    n = len(past_vectors)
+    w_books = min(0.1 * n, 0.7)
+    w_bio = 1 - w_books
+
+    if bio_vec is None and book_vec is None:
+        final_vec = np.zeros(EMBEDDING_DIM)
+    elif bio_vec is None:
+        final_vec = book_vec
+    elif book_vec is None:
+        final_vec = bio_vec
+    else:
+        final_vec = w_books * book_vec + w_bio * bio_vec
+
+    user.embedding = normalize_vector(final_vec).tolist()
 
 
 def get_or_create(model, **filters):
@@ -356,10 +471,16 @@ def login_callback():
     # get ticket
     ticket = request.args.get("ticket")
     if not ticket:
-        return "Missing CAS ticket", 400
+        return redirect("/?login_error=missing_ticket")
 
-    # Validate with CAS server → get NetID
-    netid = validate_ticket(ticket)
+    # Validate with CAS server → get NetID. CAS being down or rejecting the
+    # service URL must land the user back on the login page with a message,
+    # not on an unhandled 500.
+    try:
+        netid = validate_ticket(ticket)
+    except Exception:
+        app.logger.exception("CAS ticket validation failed")
+        return redirect("/?login_error=cas_unavailable")
 
     add_new_user(netid)
 
@@ -578,12 +699,13 @@ def is_friend():
 
 @app.route("/api/follow", methods=["POST"])
 def follow():
-    data = request.json
-    user1 = int(data.get("followee"))
-    user2_netid = data.get("follower")
+    data = json_body()
+    user1 = body_int(data, "followee")
+    user2 = user_id_or_404(data.get("follower"))
 
-    # get user2 id
-    user2 = user_id_or_404(user2_netid)
+    if user1 == user2:
+        return {"error": "You cannot follow yourself"}, 400
+    or_404(User.query.filter_by(id=user1).first(), "User")
 
     # following twice must not create a second row or double the counters
     existing = Follow.query.filter_by(follower_id=user2, followee_id=user1).first()
@@ -596,13 +718,13 @@ def follow():
     return {"success": True}
 
 @app.route("/api/unfollow", methods=["POST"])
-def unfollow():    
-    data = request.json
-    user1 = int(data.get("followee"))
-    user2_netid = data.get("follower")
+def unfollow():
+    data = json_body()
+    user1 = body_int(data, "followee")
+    user2 = user_id_or_404(data.get("follower"))
 
-    # get user2 id
-    user2 = user_id_or_404(user2_netid)
+    if user1 == user2:
+        return {"error": "You cannot unfollow yourself"}, 400
 
     follow = Follow.query.filter_by(follower_id=user2, followee_id=user1).first()
     if follow is not None:  # already unfollowed - treat as success, counts untouched
@@ -653,12 +775,10 @@ def check_if_read():
 
 @app.route("/api/add_to_read", methods=["POST"])
 def add_to_read():
-    data = request.json
-    user = data.get("user")
-    book = int(data.get("book"))
-    
-
-    user = user_id_or_404(user)
+    data = json_body()
+    book = body_int(data, "book")
+    user = user_id_or_404(data.get("user"))
+    or_404(Books.query.filter_by(id=book).first(), "Book")
 
     # unique on (user_id, book_id): adding twice must be a no-op, not a 500
     get_or_create(AlreadyRead, user_id=user, book_id=book)
@@ -668,11 +788,9 @@ def add_to_read():
 
 @app.route("/api/remove_from_read", methods=["POST"])
 def remove_from_read():
-    data = request.json
-    user = data.get("user")
-    book = int(data.get("book"))
-
-    user = user_id_or_404(user)
+    data = json_body()
+    book = body_int(data, "book")
+    user = user_id_or_404(data.get("user"))
 
     already_read = AlreadyRead.query.filter_by(user_id=user, book_id=book).first()
     if already_read is not None:  # already removed - treat as success
@@ -696,12 +814,10 @@ def check_if_wishlist():
 
 @app.route("/api/add_to_wishlist", methods=["POST"])
 def add_to_wishlist():
-    data = request.json
-    user = data.get("user")
-    book = int(data.get("book"))
-    
-
-    user = user_id_or_404(user)
+    data = json_body()
+    book = body_int(data, "book")
+    user = user_id_or_404(data.get("user"))
+    or_404(Books.query.filter_by(id=book).first(), "Book")
 
     # unique on (user_id, book_id): adding twice must be a no-op, not a 500
     get_or_create(Wishlist, user_id=user, book_id=book)
@@ -711,11 +827,9 @@ def add_to_wishlist():
 
 @app.route("/api/remove_from_wishlist", methods=["POST"])
 def remove_from_wishlist():
-    data = request.json
-    user = data.get("user")
-    book = int(data.get("book"))
-
-    user = user_id_or_404(user)
+    data = json_body()
+    book = body_int(data, "book")
+    user = user_id_or_404(data.get("user"))
 
     already_read = Wishlist.query.filter_by(user_id=user, book_id=book).first()
     if already_read is not None:  # already removed - treat as success
@@ -778,154 +892,61 @@ def check_already_review():
 
 @app.route("/api/add_review", methods=["POST"])
 def add_review():
-    data = request.json
-    user = data.get("user")
-    book_id = int(data.get("book"))
-    review = data.get("review")
-    rating = int(data.get("rating"))
+    data = json_body()
+    book_id = body_int(data, "book")
+    rating = body_int(data, "rating", minimum=1, maximum=5)
+    review_text = body_str(data, "review", required=True, max_length=5000)
 
-    user_id = user_id_or_404(user)
-
-    # increment reputation by 5
-    user = or_404(User.query.filter_by(id=user_id).first(), "User")
-    user.reputation = (user.reputation or 0) + 5
-
-    # update average rating and num of ratings and views of books
+    user = user_or_404(data.get("user"))
     book = or_404(Books.query.filter_by(id=book_id).first(), "Book")
-    book.average_rating = (book.average_rating * book.num_ratings + rating) / (book.num_ratings + 1)
-    book.num_ratings += 1
-    book.num_reviews += 1
 
-    # update embedding vector (average of embedding vector most recent 5 review with rating over 4 stars)
-    # Get last 5 books they reviewed as embedding anchors
-    past_good = (
-        db.session.query(Books.embedding)
-        .join(Review, Review.book_id == Books.id)
-        .filter(Review.user_id == user_id)
-        .filter(Review.rating >= 4)
-        .order_by(Review.updated_at.desc())
-        .limit(4)                          # only take last 4 because we add new one = 5
-        .all()
-    )
+    # one review per user per book
+    existing = Review.query.filter_by(user_id=user.id, book_id=book.id).first()
+    if existing is not None:
+        return {"error": "You have already reviewed this book"}, 409
 
-    # Convert row objects → list of vectors
-    past_vectors = [row.embedding for row in past_good]
+    db.session.add(Review(user_id=user.id, book_id=book.id,
+                          review=review_text, rating=rating))
+    db.session.flush()  # so the aggregates below see this review
 
-    # Add the current book’s embedding if rating >= 4
-    if rating >= 4:
-        past_vectors.append(book.embedding)
+    user.reputation = (user.reputation or 0) + 5
+    refresh_book_stats(book)
+    rebuild_user_embedding(user)
 
-    # If no good reviews at all, fall back to zero vector
-    if len(past_vectors) == 0:
-        book_vec = None
-    else:
-        book_vec = np.mean(np.array(past_vectors), axis=0)
-    
-    # weighing
-    n = len(past_vectors)
-    w_books = min(0.1 * n, 0.7)   # grows from 0 → 0.7 as user gets more history
-    w_bio = 1 - w_books    
-
-    # get bio vector
-    if user.bio is not None:
-        bio_vec = get_model().encode(user.bio).astype('float')
-    else:
-        bio_vec = None
-
-    if bio_vec is None and book_vec is None:
-        final_vec = np.zeros(384)
-    elif bio_vec is None:
-        final_vec = book_vec
-    elif book_vec is None:
-        final_vec = bio_vec
-    else:
-        final_vec = w_books * book_vec + w_bio * bio_vec
-
-    # normalize
-    final_vec = final_vec / np.linalg.norm(final_vec)   
-    
-    user.embedding = final_vec.tolist()
-
-    review = Review(user_id=user_id, book_id=book_id, review=review, rating=rating)
-    db.session.add(review)
     db.session.commit()
-
     return {"success": True}
 
 @app.route("/api/update_bio", methods=["POST"])
 def update_bio():
-    data = request.json
-    user = data.get("user")
-    bio = data.get("bio")
+    data = json_body()
+    user = user_or_404(data.get("user"))
+    user.bio = body_str(data, "bio", required=False, max_length=2000)
 
-    user = user_or_404(user)
-    user_id = user.id
-    user.bio = bio
+    rebuild_user_embedding(user)
 
-     # update embedding vector (average of embedding vector most recent 5 review with rating over 4 stars)
-    # Get last 5 books they reviewed as embedding anchors
-    past_good = (
-        db.session.query(Books.embedding)
-        .join(Review, Review.book_id == Books.id)
-        .filter(Review.user_id == user_id)
-        .filter(Review.rating >= 4)
-        .order_by(Review.updated_at.desc())
-        .limit(5)                          # only take last 4 because we add new one = 5
-        .all()
-    )
-
-    # Convert row objects → list of vectors
-    past_vectors = [row.embedding for row in past_good]
-
-    # If no good reviews at all, fall back to zero vector
-    if len(past_vectors) == 0:
-        book_vec = None
-    else:
-        book_vec = np.mean(np.array(past_vectors), axis=0)
-    
-    # weighing
-    n = len(past_vectors)
-    w_books = min(0.1 * n, 0.7)   # grows from 0 → 0.7 as user gets more history
-    w_bio = 1 - w_books    
-
-    # get bio vector
-    if bio is not None:
-        bio_vec = get_model().encode(bio).astype('float')
-    else:
-        bio_vec = None
-
-    if bio_vec is None and book_vec is None:
-        final_vec = np.zeros(384)
-    elif bio_vec is None:
-        final_vec = book_vec
-    elif book_vec is None:
-        final_vec = bio_vec
-    else:
-        final_vec = w_books * book_vec + w_bio * bio_vec
-    
-    # normalize
-    final_vec = final_vec / np.linalg.norm(final_vec)
-    
-    user.embedding = final_vec.tolist()
     db.session.commit()
-
     return {"success": True}
 
 @app.route("/api/delete_review", methods=["POST"])
-def delete_review(): 
-    data = request.json
-    review_id = int(data.get("id"))
+def delete_review():
+    data = json_body()
+    review_id = body_int(data, "id")
 
-    review = Review.query.filter_by(id=review_id).first()
-
-    # fix average rating and rating count for book
+    review = or_404(Review.query.filter_by(id=review_id).first(), "Review")
     book = Books.query.filter_by(id=review.book_id).first()
-    book.average_rating = (book.average_rating * book.num_ratings - review.rating) / (book.num_ratings - 1)
-    book.num_ratings -= 1
 
     db.session.delete(review)
-    db.session.commit()
+    db.session.flush()  # so the aggregates below no longer see it
 
+    # recomputed, so deleting the only review can no longer divide by zero
+    if book is not None:
+        refresh_book_stats(book)
+
+    user = User.query.filter_by(id=review.user_id).first()
+    if user is not None:
+        rebuild_user_embedding(user)
+
+    db.session.commit()
     return {"success": True}
 
 @app.route("/api/get_author_books")
@@ -971,6 +992,10 @@ def search_people():
     base_user = None
     if user_netid:
         base_user = User.query.filter_by(netid=user_netid).first()
+
+    # the following/followers filters are meaningless without a known base user
+    if (following or followers) and base_user is None:
+        abort(400, description="A valid 'user' is required to filter by following/followers")
 
     # Helper for search
     def apply_search(q):
@@ -1120,7 +1145,10 @@ def search_books():
     # genres
     if genres:
         # convert to ints
-        genre_ids = [int(g) for g in genres]
+        try:
+            genre_ids = [int(g) for g in genres]
+        except (TypeError, ValueError):
+            abort(400, description="genres[] must contain integer genre ids")
 
         # Join once on the association table
         query = query.join(genre_to_books).filter(

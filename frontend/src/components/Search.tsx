@@ -1,3 +1,4 @@
+import { coverSrc, onCoverError } from '../lib/cover';
 import type { BookData, GenreData } from '../types';
 import './Search.css'
 import NavBar from './NavBar.tsx';
@@ -18,18 +19,32 @@ export default function Search() {
     const [trigger, setTrigger] = useState(1);
 
 
+    const [searchError, setSearchError] = useState("");
     const [books, setBooks] = useState<BookData[]>([]);
 
     // get genres for form
     useEffect(() => {
-        axios.get("/api/get_all_genres").then((res) => setGenres(res.data.genres));
+        axios.get("/api/get_all_genres").then((res) => setGenres(res.data.genres)).catch((e) => console.error("request failed", e));
     }, []);
 
     // update on query
     useEffect(() => {
-        console.log(selectedGenres)
-        axios.get("/api/search_books", {params: {book: bookQuery, author: authorQuery, genres: selectedGenres, following: following, description: description, advancedSearch: advancedSearch, user: sessionStorage.getItem("netid"), alreadyRead: alreadyRead, wishlist: wishlist}}).then((res) => setBooks(res.data.books)).then(() => setAdvancedSearch(false));
-        
+        // Typing fires overlapping requests; without this guard a slow earlier
+        // response can land after a faster later one and overwrite the results.
+        let cancelled = false;
+        setSearchError("");
+        axios.get("/api/search_books", {params: {book: bookQuery, author: authorQuery, genres: selectedGenres, following: following, description: description, advancedSearch: advancedSearch, user: sessionStorage.getItem("netid"), alreadyRead: alreadyRead, wishlist: wishlist}})
+            .then((res) => {
+                if (cancelled) return;
+                setBooks(res.data.books ?? []);
+                setAdvancedSearch(false);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setBooks([]);
+                setSearchError(err?.response?.data?.error || "Search failed. Please try again.");
+            });
+        return () => { cancelled = true; };
     }, [bookQuery, authorQuery, genres, following, selectedGenres, alreadyRead, wishlist, trigger]);
 
     
@@ -178,7 +193,11 @@ export default function Search() {
         </form>
 
         <div className="search-results-section">
-    {books.length === 0 ? (
+    {searchError ? (
+        <div className="search-empty">
+            <p className="form-error">{searchError}</p>
+        </div>
+    ) : books.length === 0 ? (
         <div className="search-empty-state">
             <p>No books found.</p>
             <Link to="/add_book" className="add-book-link">
@@ -197,7 +216,8 @@ export default function Search() {
                             <div className="search-result-card">
                                 <div className="search-result-cover-wrapper">
                                     <img
-                                        src={book.cover_url}
+                                        src={coverSrc(book.cover_url)}
+                                        onError={onCoverError}
                                         alt={`${book.title} cover`}
                                         className="search-result-cover"
                                     />

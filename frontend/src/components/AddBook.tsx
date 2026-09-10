@@ -19,6 +19,8 @@ export default function AddBook() {
     const navigate = useNavigate()
 
     const [coverImage, setCoverImage] = useState<File | null>(null);
+    const [submitError, setSubmitError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     const handleChange = (e: any) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -32,16 +34,18 @@ export default function AddBook() {
         fd.append("cover_image", coverImage!); // guaranteed non-null
         fd.append("netid", sessionStorage.getItem("netid")!);
 
+        setSubmitting(true);
+        setSubmitError("");
         try {
             await axios.post("/api/add_book", fd, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
-            alert("Book created successfully!");
-        } catch (err) {
-            console.error(err);
-            alert("Error creating book.");
+            navigate(-1);   // only leave the page once the book actually saved
+        } catch (err: any) {
+            // stay put so the user does not lose everything they typed
+            setSubmitError(err?.response?.data?.error || "Could not create the book. Please try again.");
+            setSubmitting(false);
         }
-        navigate(-1);
     };
     return (
          <div id="add-book-page">
@@ -153,7 +157,9 @@ export default function AddBook() {
             </div>
 
             <div className="form-actions">
-                <button type="submit" className="primary-button">
+                {submitError && <p className="form-error">{submitError}</p>}
+
+                <button type="submit" className="primary-button" disabled={submitting}>
                     Create Book
                 </button>
             </div>
