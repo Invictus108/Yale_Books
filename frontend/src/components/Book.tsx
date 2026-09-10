@@ -1,3 +1,4 @@
+import type { AuthorData, BookData, GenreData, ReviewData } from '../types';
 import './Book.css'
 import { useParams, useNavigate } from "react-router-dom"
 import axios from 'axios';
@@ -8,10 +9,10 @@ export default function Book() {
     const navigate = useNavigate()
     const { id } = useParams()
 
-    const [reviews, setReviews] = useState([]);
-    const [book, setBook] = useState({});
-    const [authors, setAuthors] = useState([]);
-    const [genres, setGenres] = useState([]);
+    const [reviews, setReviews] = useState<ReviewData[]>([]);
+    const [book, setBook] = useState<Partial<BookData>>({});
+    const [authors, setAuthors] = useState<AuthorData[]>([]);
+    const [genres, setGenres] = useState<GenreData[]>([]);
     const [alreadyRead, setAlreadyRead] = useState(false);
     const [wishlist, setWishlist] = useState(false);
     const [alreadyReviewed, setAlreadyReviewed] = useState(false);

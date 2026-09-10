@@ -1,3 +1,4 @@
+import type { BookData } from '../types';
 import './Wishlist.css'
 import NavBar from './NavBar.tsx';
 import { useState, useEffect } from "react";
@@ -6,7 +7,7 @@ import { Link } from "react-router-dom";
 
 export default function Wishlist() {
 
-    const [books, setBooks] = useState([]);
+    const [books, setBooks] = useState<BookData[]>([]);
 
     useEffect(() => {
         axios.get("/api/get_wishlist", {params: {key: sessionStorage.getItem("netid")}}).then((res) => setBooks(res.data.wishlist));

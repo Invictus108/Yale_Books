@@ -1,12 +1,12 @@
+import type { BookData } from '../types';
 import './FindBooks.css'
 import NavBar from './NavBar.tsx';
 import { useState, useEffect } from "react";
 import axios from 'axios';
 import { Link } from "react-router-dom";
-import { useParams, useNavigate } from "react-router-dom"
 
 export default function FindBooks() {
-    const [books, setBooks] = useState([]);
+    const [books, setBooks] = useState<BookData[]>([]);
 
 
     // update on query

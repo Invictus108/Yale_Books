@@ -6,35 +6,54 @@ from urllib.parse import urlencode
 from flask_cors import CORS
 from extensions import db
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
+from embeddings import get_model
 import uuid
 import boto3
 import mimetypes
+from sqlalchemy import func, desc, case, text
+import numpy as np
+
+
 
 load_dotenv()
 
 
 
-model = SentenceTransformer('intfloat/e5-small-v2')
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 # init all api keys and connect database
 def create_app():
     app = Flask(__name__)
     app.secret_key = os.getenv("SESSION_SECRET") # for signing cookies
+    if not app.secret_key:
+        raise RuntimeError("SESSION_SECRET must be set")
+    app.config.update(
+        SESSION_COOKIE_SECURE=FRONTEND_URL.startswith("https://"),
+        SESSION_COOKIE_SAMESITE="None" if FRONTEND_URL.startswith("https://") else "Lax",
+    )
     CORS(app,
         supports_credentials=True,
-        origins=["https://yalebooks-be079.web.app/","http://localhost:5173"], # TODO: change to prod
+        origins=[FRONTEND_URL],
         methods=["GET", "POST"]
     )
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL must be set to a PostgreSQL connection URL")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
+    
 
     import database_schemas
 
     with app.app_context():
+        if db.engine.dialect.name == "postgresql":
+            db.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            db.session.commit()
         db.create_all()
     
     return app
@@ -60,7 +79,7 @@ CAS_LOGIN_URL = "https://secure-tst.its.yale.edu/cas/login" # remove -tst fot pr
 CAS_VALIDATE_URL = "https://secure-tst.its.yale.edu/cas/p3/serviceValidate"
 
 # callback URL 
-SERVICE_URL = os.getenv("ORIGIN", "http://localhost:5000") + "/login_callback"
+SERVICE_URL = os.getenv("ORIGIN", os.getenv("RENDER_EXTERNAL_URL", "http://localhost:5000")).rstrip("/") + "/login_callback"
 
 # helpers
 def parse_cas_response(xml_text: str):
@@ -104,13 +123,24 @@ def add_new_user(netid: str):
     # if not found create new user
     new_user = User(
         netid=netid,
-        reputation=0
+        reputation=0, 
+        embedding=np.zeros(384)
     )
     
     db.session.add(new_user)
     db.session.commit()
 
+
+def cosine_distance(column, vector):
+    return column.op("<=>")(vector)
+
 # identity route to check if user is logged in
+@app.route("/healthz")
+def health():
+    db.session.execute(text("SELECT 1"))
+    return {"status": "ok"}
+
+
 @app.route("/api/me")
 def me():
     if "netid" in session:
@@ -148,7 +178,7 @@ def login_callback():
     # Store NetID in session
     session["netid"] = netid
 
-    return redirect("http://localhost:5173/") # frontend url
+    return redirect(FRONTEND_URL + "/")
 
 # main index
 @app.route("/")
@@ -161,7 +191,7 @@ def home():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("http://localhost:5173/")
+    return redirect(FRONTEND_URL + "/")
 
 @app.route("/api/get_person")
 def get_person():
@@ -254,7 +284,7 @@ def add_book():
     cover_url = upload_to_filebase(file)
     
     # get embedding vector
-    embedding = model.encode(blurb).astype(float).tolist()
+    embedding = get_model().encode(blurb).astype(float).tolist()
 
     # add book to database
     book = Books(
@@ -570,6 +600,56 @@ def add_review():
     book.num_ratings += 1
     book.num_reviews += 1
 
+    # update embedding vector (average of embedding vector most recent 5 review with rating over 4 stars)
+    # Get last 5 books they reviewed as embedding anchors
+    past_good = (
+        db.session.query(Books.embedding)
+        .join(Review, Review.book_id == Books.id)
+        .filter(Review.user_id == user_id)
+        .filter(Review.rating >= 4)
+        .order_by(Review.updated_at.desc())
+        .limit(4)                          # only take last 4 because we add new one = 5
+        .all()
+    )
+
+    # Convert row objects → list of vectors
+    past_vectors = [row.embedding for row in past_good]
+
+    # Add the current book’s embedding if rating >= 4
+    if rating >= 4:
+        past_vectors.append(book.embedding)
+
+    # If no good reviews at all, fall back to zero vector
+    if len(past_vectors) == 0:
+        book_vec = None
+    else:
+        book_vec = np.mean(np.array(past_vectors), axis=0)
+    
+    # weighing
+    n = len(past_vectors)
+    w_books = min(0.1 * n, 0.7)   # grows from 0 → 0.7 as user gets more history
+    w_bio = 1 - w_books    
+
+    # get bio vector
+    if user.bio is not None:
+        bio_vec = get_model().encode(user.bio).astype('float')
+    else:
+        bio_vec = None
+
+    if bio_vec is None and book_vec is None:
+        final_vec = np.zeros(384)
+    elif bio_vec is None:
+        final_vec = book_vec
+    elif book_vec is None:
+        final_vec = bio_vec
+    else:
+        final_vec = w_books * book_vec + w_bio * bio_vec
+
+    # normalize
+    final_vec = final_vec / np.linalg.norm(final_vec)   
+    
+    user.embedding = final_vec.tolist()
+
     review = Review(user_id=user_id, book_id=book_id, review=review, rating=rating)
     db.session.add(review)
     db.session.commit()
@@ -583,7 +663,54 @@ def update_bio():
     bio = data.get("bio")
 
     user = User.query.filter_by(netid=user).first()
+    user_id = user.id
     user.bio = bio
+
+     # update embedding vector (average of embedding vector most recent 5 review with rating over 4 stars)
+    # Get last 5 books they reviewed as embedding anchors
+    past_good = (
+        db.session.query(Books.embedding)
+        .join(Review, Review.book_id == Books.id)
+        .filter(Review.user_id == user_id)
+        .filter(Review.rating >= 4)
+        .order_by(Review.updated_at.desc())
+        .limit(5)                          # only take last 4 because we add new one = 5
+        .all()
+    )
+
+    # Convert row objects → list of vectors
+    past_vectors = [row.embedding for row in past_good]
+
+    # If no good reviews at all, fall back to zero vector
+    if len(past_vectors) == 0:
+        book_vec = None
+    else:
+        book_vec = np.mean(np.array(past_vectors), axis=0)
+    
+    # weighing
+    n = len(past_vectors)
+    w_books = min(0.1 * n, 0.7)   # grows from 0 → 0.7 as user gets more history
+    w_bio = 1 - w_books    
+
+    # get bio vector
+    if bio is not None:
+        bio_vec = get_model().encode(bio).astype('float')
+    else:
+        bio_vec = None
+
+    if bio_vec is None and book_vec is None:
+        final_vec = np.zeros(384)
+    elif bio_vec is None:
+        final_vec = book_vec
+    elif book_vec is None:
+        final_vec = bio_vec
+    else:
+        final_vec = w_books * book_vec + w_bio * bio_vec
+    
+    # normalize
+    final_vec = final_vec / np.linalg.norm(final_vec)
+    
+    user.embedding = final_vec.tolist()
     db.session.commit()
 
     return {"success": True}
@@ -594,6 +721,12 @@ def delete_review():
     review_id = int(data.get("id"))
 
     review = Review.query.filter_by(id=review_id).first()
+
+    # fix average rating and rating count for book
+    book = Books.query.filter_by(id=review.book_id).first()
+    book.average_rating = (book.average_rating * book.num_ratings - review.rating) / (book.num_ratings - 1)
+    book.num_ratings -= 1
+
     db.session.delete(review)
     db.session.commit()
 
@@ -751,57 +884,308 @@ def search_people():
         "users": [u.to_dict() for u in users]
     }
 
-
-
-@app.route("/api/get_recommendations")
-def get_recommendations():
-    user_netid = request.args.get("user")
-    user = User.query.filter_by(netid=user_netid).first()
-
-    if not user:
-        return {"error": "User not found"}, 404
-
-    user_id = user.id
-
-    # TODO
-
-    # just return all for now
-    books = Books.query.order_by(Books.average_rating.desc()).all()
-
-    return {
-        "books": [b.to_dict() for b in books]
-    }
-
 @app.route("/api/search_books")
 def search_books():
-    # TODO: add more advanced features in search
     book = request.args.get("book", None)
     author = request.args.get("author", None)
     genres = request.args.getlist("genres[]", None)
     following = request.args.get("following", None)
     description = request.args.get("description", None)
     advanced_search = request.args.get("advancedSearch", None)
+    user_netid = request.args.get("user", None)
+    already_read = request.args.get("alreadyRead", None)
+    wishlist = request.args.get("wishlist", None)
 
-    # conver following and advanced_search to bools
+    user_id = User.query.filter_by(netid=user_netid).first().id
+
+    print(genres)
+
+    # convert from strings to bools
     following = following == "true"
     advanced_search = advanced_search == "true"
+    already_read = already_read == "true"
+    wishlist = wishlist == "true"
 
-    print(f"book: {book}, author: {author}, genres: {genres}, following: {following}, description: {description}, advanced_search: {advanced_search}")
+    # make embedding vector
+    description_embeddings = (
+        get_model().encode(description).astype(float).tolist()
+        if advanced_search and description else None
+    )
+
+    query = Books.query
+
+    # title
+    if book:
+        query = query.filter(Books.title.ilike(f"%{book}%"))
+
+    # author
+    if author:
+        query = query.join(Books.authors).filter(
+            Author.name.ilike(f"%{author}%")
+        )
+
+    # genres
+    if genres:
+        # convert to ints
+        genre_ids = [int(g) for g in genres]
+
+        # Join once on the association table
+        query = query.join(genre_to_books).filter(
+            genre_to_books.c.genre_id.in_(genre_ids)
+        ).group_by(Books.id)
+
+        # require that book contains ALL selected genres
+        query = query.having(func.count(genre_to_books.c.genre_id) == len(genre_ids))
 
     
+    # following filter
+    if following and user_id:
+        query = (
+            query.join(Books.reviews)
+                 .join(Follow, Follow.followee_id == Review.user_id)
+                 .filter(Follow.follower_id == user_id)
+                 .filter(Review.rating >= 4)
+        )
 
+    # exclude wishlist
+    if wishlist and user_id:
+        query = query.filter(
+            ~Books.id.in_(
+                db.session.query(Wishlist.book_id).filter_by(user_id=user_id)
+            )
+        )
 
+    # exclude already read
+    if already_read and user_id:
+        query = query.filter(
+            ~Books.id.in_(
+                db.session.query(AlreadyRead.book_id).filter_by(user_id=user_id)
+            )
+        )
 
-    if book:
-        books = Books.query.filter(Books.title.contains(book)).order_by(Books.average_rating.desc()).all()
-
+    # advanced search
+    if advanced_search and description_embeddings:
+        # pgvector similarity search
+        query = query.order_by(
+            Books.embedding.cosine_distance(description_embeddings)
+        )
     else:
-        books = Books.query.order_by(Books.average_rating.desc()).all()
+        # Default ordering
+        query = query.order_by(Books.average_rating.desc())
+        # Remove duplicates caused by various JOINs
+        query = query.distinct()
+
+    books = query.limit(50).all()
     
     return {
         "books": [b.to_dict() for b in books]
     }
 
+@app.route("/api/get_recommendations")
+def get_recommendations():
+    limit = 200
+    user_netid = request.args.get("user")
+    user = User.query.filter_by(netid=user_netid).first()
+    user_id = user.id
+
+    if not user_id:
+        return {"error": "User not found"}, 404
+
+    excluded_books = set()
+
+    # books they read
+    read_ids = db.session.query(AlreadyRead.book_id)\
+                         .filter_by(user_id=user_id).all()
+    excluded_books.update([b[0] for b in read_ids])
+
+    # books in wishlist
+    wishlist_ids = db.session.query(Wishlist.book_id)\
+                             .filter_by(user_id=user_id).all()
+    excluded_books.update([b[0] for b in wishlist_ids])
+
+    # books they reviewed
+    reviewed_ids = db.session.query(Review.book_id)\
+                             .filter_by(user_id=user_id).all()
+    excluded_books.update([b[0] for b in reviewed_ids])
+
+    # Convert to set
+    excluded_books = list(excluded_books)
+
+
+    # If empty, pass None to NOT break "NOT IN" queries
+    if not excluded_books:
+        excluded_books = [-1]     # ensures NOT IN never filters everything
+
+
+    # ======================
+    # 2. Build user preference embedding
+    # ======================
+
+    # Get last 5 books they reviewed as embedding anchors
+    past_good = (
+        db.session.query(Books.embedding)
+        .join(Review, Review.book_id == Books.id)
+        .filter(Review.user_id == user_id)
+        .filter(Review.rating >= 4)
+        .order_by(Review.updated_at.desc())
+        .limit(5)                          # only take last 4 because we add new one = 5
+        .all()
+    )
+
+    # Convert row objects → list of vectors
+    past_vectors = [row[0] for row in past_good]
+
+    # If no good reviews at all, fall back to zero vector
+    if len(past_vectors) == 0:
+        book_vec = None
+    else:
+        book_vec = np.mean(np.array(past_vectors), axis=0)
+    
+    # weighing
+    n = len(past_vectors)
+    w_books = min(0.1 * n, 0.7)   # grows from 0 → 0.7 as user gets more history
+    w_bio = 1 - w_books    
+
+    # get bio vector
+    if user.bio != "":
+        bio_vec = get_model().encode(user.bio).astype('float')
+    else:
+        bio_vec = None
+    
+    if bio_vec is None and book_vec is None:
+        user_embedding = None
+    elif bio_vec is None:
+        user_embedding = w_books * book_vec
+    elif book_vec is None:
+        user_embedding = w_bio * bio_vec
+    else:
+        user_embedding = w_books * book_vec + w_bio * bio_vec
+    
+    if user_embedding is not None:
+        user_embedding = user_embedding.tolist()
+    
+
+
+
+    # ======================
+    # 3. Base Query:
+    # Only return books user has NOT already touched
+    # ======================
+
+    query = Books.query.filter(~Books.id.in_(excluded_books))
+
+
+    # ======================
+    # 4. Boost books liked by followed users
+    # ======================
+
+    followed_review_scores = (
+        db.session.query(
+            Review.book_id.label("book_id"),
+            func.avg(Review.rating).label("follow_rating")
+        )
+        .join(Follow, Follow.followee_id == Review.user_id)
+        .filter(Follow.follower_id == user_id)
+        .filter(Review.rating >= 4)  # only strong likes
+        .group_by(Review.book_id)
+        .subquery()
+    )
+
+    query = query.outerjoin(
+        followed_review_scores,
+        followed_review_scores.c.book_id == Books.id
+    )
+
+
+    # ======================
+    # 5. Embedding similarity scores
+    # ======================
+    num_users = User.query.count()
+
+    if user_embedding is not None:
+        book_similarity_score = Books.embedding.cosine_distance(user_embedding)
+
+        # only try user matching if there are enough users
+        if num_users > 50:
+            user_sim_expr = User.embedding.cosine_distance(user_embedding)
+        else:
+            user_sim_expr = None
+    else:
+        book_similarity_score = None
+        user_sim_expr = None
+
+
+    # user similarity scores
+    if user_sim_expr is not None:
+        similar_users = (
+            db.session.query(
+                User.id,
+                user_sim_expr.label("sim")
+            )
+            .filter(User.id != user_id)          # exclude self
+            .order_by(user_sim_expr.asc())       # smaller distance = more similar
+            .limit(5) # get 5 most similar users
+            .all()
+        )
+
+        similar_user_ids = [uid for uid, sim in similar_users]
+
+
+        similar_user_books = (
+            db.session.query(Books.id.label("id"))
+            .join(Review, Review.book_id == Books.id)
+            .filter(Review.user_id.in_(similar_user_ids))
+            .filter(Review.rating >= 4)
+            .union(
+                db.session.query(AlreadyRead.book_id.label("book_id"))
+                .filter(AlreadyRead.user_id.in_(similar_user_ids))
+            )
+            .subquery()
+        )
+
+        similar_user_flag = case(
+            (similar_user_books.c.id != None, 1),
+            else_=0
+        ).label("similar_user_score")
+
+        query = query.outerjoin(
+            similar_user_books,
+            similar_user_books.c.id == Books.id
+        )
+
+        ORDER = []
+
+        # vector similarity to user reading history
+        if user_embedding is not None:
+            ORDER.append(book_similarity_score.asc())
+        
+        # similar-user behavior
+        ORDER.append(desc(similar_user_flag))
+
+        # followed-user behavior
+        ORDER.append(desc(followed_review_scores.c.follow_rating))
+
+        # global popularity ranking
+        ORDER.append(desc(Books.average_rating))
+        ORDER.append(desc(Books.num_ratings))
+
+        books = query.order_by(*ORDER).limit(limit).all()
+    else:
+        ORDER = []
+
+        if book_similarity_score is not None:
+            ORDER.append(book_similarity_score.asc()) # closer vector → better match
+
+        ORDER.append(desc(followed_review_scores.c.follow_rating))  # liked by followees
+        ORDER.append(desc(Books.average_rating))                    # general quality
+        ORDER.append(desc(Books.num_ratings))                       # popularity fallback
+
+
+        books = query.order_by(*ORDER).limit(limit).all()
+
+    return {
+        "books": [b.to_dict() for b in books]
+    }
 
 # add already read and book list to book page
 

@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import { Link, useLocation } from "react-router-dom";
 import "./NavBar.css";
 
@@ -36,7 +37,7 @@ export default function Navbar() {
           <li>
             <button
               className="logout-button"
-              onClick={() => (window.location.href = "/logout")}
+              onClick={() => (window.location.href = `${API_URL}/logout`)}
             >
               Logout
             </button>

@@ -1,11 +1,10 @@
 import './BioForm.css'
 import axios from 'axios';
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export default function Review() {
     const navigate = useNavigate()
-    const { id } = useParams()
 
     const [bio, setBio] = useState("");
 

@@ -3,6 +3,7 @@ import boto3
 import os
 from dotenv import load_dotenv
 from botocore.client import Config
+from pgvector.sqlalchemy import Vector
 
 load_dotenv()
 # ============================
@@ -36,6 +37,7 @@ class User(db.Model):
     followers_count = db.Column(db.Integer, default=0)
     following_count = db.Column(db.Integer, default=0)
     bio = db.Column(db.String(), default="")
+    embedding = db.Column(Vector(384))
 
     reviews = db.relationship("Review", back_populates="user")
 
@@ -123,7 +125,7 @@ class Books(db.Model):
     date_published = db.Column(db.String(50))
     blurb = db.Column(db.Text)
 
-    embedding = db.Column(db.ARRAY(db.Float))
+    embedding = db.Column(Vector(384)) #embedding = db.Column(db.ARRAY(db.Float))
 
     length = db.Column(db.Integer)
     cover_url = db.Column(db.String)  # Firebase URL
@@ -172,13 +174,11 @@ class Books(db.Model):
 
     # convert to dict for simple api calls
     def to_dict(self):
-        print("DEBUG PRESIGNED:", self.generate_presigned_url(self.cover_url))
         return {
             "id": self.id,
             "title": self.title,
             "date_published": self.date_published,
             "blurb": self.blurb,
-            "embedding": self.embedding,
             "length": self.length,
             "cover_url": self.generate_presigned_url(self.cover_url), 
             "link": self.link,

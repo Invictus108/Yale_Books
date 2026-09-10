@@ -1,3 +1,4 @@
+import type { ReviewData, UserData } from '../types';
 import './Person.css'
 import { useParams, useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react";
@@ -8,8 +9,8 @@ export default function Book() {
     const navigate = useNavigate()
     const { id } = useParams()
 
-    const [reviews, setReviews] = useState([]);
-    const [user, setUser] = useState({});
+    const [reviews, setReviews] = useState<ReviewData[]>([]);
+    const [user, setUser] = useState<Partial<UserData>>({});
     const [follow, setFollow] = useState(false);
 
 

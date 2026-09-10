@@ -3,3 +3,7 @@ hosting.txt
 firebase.json
 .firebaserc
 .firebase
+__pycache__/
+*.pyc
+.cache/
+*.tsbuildinfo

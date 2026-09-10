@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import './Login.css'
 
 export default function Login(){
@@ -11,7 +12,7 @@ export default function Login(){
 
     <button
       className="primary-button not-logged-button"
-      onClick={() => (window.location.href = "/login")}
+      onClick={() => (window.location.href = `${API_URL}/login`)}
     >
       Login with CAS
     </button>

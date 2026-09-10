@@ -1,3 +1,4 @@
+import type { BookData, GenreData } from '../types';
 import './Search.css'
 import NavBar from './NavBar.tsx';
 import { useState, useEffect } from "react";
@@ -7,14 +8,17 @@ import { Link } from "react-router-dom";
 export default function Search() {
     const [bookQuery, setBookQuery] = useState("");
     const [authorQuery, setAuthorQuery] = useState("");
-    const [genres, setGenres] = useState([]);
+    const [genres, setGenres] = useState<GenreData[]>([]);
     const [following, setFollowing] = useState(false);
     const [selectedGenres, setSelectedGenres] = useState<number[]>([]); 
     const [description, setDescription] = useState("");
     const [advancedSearch, setAdvancedSearch] = useState(false);
+    const [alreadyRead, setAlreadyRead] = useState(false);
+    const [wishlist, setWishlist] = useState(false);
+    const [trigger, setTrigger] = useState(1);
 
 
-    const [books, setBooks] = useState([]);
+    const [books, setBooks] = useState<BookData[]>([]);
 
     // get genres for form
     useEffect(() => {
@@ -24,9 +28,9 @@ export default function Search() {
     // update on query
     useEffect(() => {
         console.log(selectedGenres)
-        axios.get("/api/search_books", {params: {book: bookQuery, author: authorQuery, genres: selectedGenres, following: following, description: description, advancedSearch: advancedSearch}}).then((res) => setBooks(res.data.books)).then(() => setAdvancedSearch(false));
+        axios.get("/api/search_books", {params: {book: bookQuery, author: authorQuery, genres: selectedGenres, following: following, description: description, advancedSearch: advancedSearch, user: sessionStorage.getItem("netid"), alreadyRead: alreadyRead, wishlist: wishlist}}).then((res) => setBooks(res.data.books)).then(() => setAdvancedSearch(false));
         
-    }, [bookQuery, authorQuery, genres, following, selectedGenres]);
+    }, [bookQuery, authorQuery, genres, following, selectedGenres, alreadyRead, wishlist, trigger]);
 
     
     const handleDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -131,6 +135,30 @@ export default function Search() {
                 </label>
             </div>
 
+            <div className="search-field toggle-field">
+                <label className="toggle-label">
+                    <input
+                        type="checkbox"
+                        checked={alreadyRead}
+                        onChange={(e) => setAlreadyRead(e.target.checked)}
+                        className="toggle-checkbox"
+                    />
+                    <span>Hide Finished Books</span>
+                </label>
+            </div>
+
+            <div className="search-field toggle-field">
+                <label className="toggle-label">
+                    <input
+                        type="checkbox"
+                        checked={wishlist}
+                        onChange={(e) => setWishlist(e.target.checked)}
+                        className="toggle-checkbox"
+                    />
+                    <span>Hide Books in Wishlist</span>
+                </label>
+            </div>
+
             <div className="search-advanced-note">
                 <p>Advanced Search will use ML and may take longer.</p>
             </div>
@@ -141,7 +169,7 @@ export default function Search() {
                     onClick={(e) => {
                         e.preventDefault();
                         setAdvancedSearch(true);
-                        setBookQuery(bookQuery + " ");
+                        setTrigger(trigger + 1);
                     }}
                 >
                     Advanced Search

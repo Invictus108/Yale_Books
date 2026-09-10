@@ -1,3 +1,4 @@
+import type { UserData } from '../types';
 import './People.css'
 import NavBar from './NavBar.tsx';
 import { useState, useEffect } from "react";
@@ -6,7 +7,7 @@ import { Link } from "react-router-dom";
 
 export default function People() {
     const [query, setQuery] = useState("");
-    const [people, setPeople] = useState([]);
+    const [people, setPeople] = useState<UserData[]>([]);
     const [following, setFollowing] = useState(false);
     const [followers, setFollowers] = useState(false);
 

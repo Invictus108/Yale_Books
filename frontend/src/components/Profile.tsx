@@ -1,6 +1,6 @@
+import type { ReviewData, UserData } from '../types';
 import './Profile.css'
 import NavBar from './NavBar.tsx';
-import { useParams, useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react";
 import axios from 'axios';
 import { Link } from "react-router-dom";
@@ -13,8 +13,8 @@ export default function Profile() {
         axios.get("/api/whoami", {params: {user: sessionStorage.getItem("netid")}}).then((res) => setId(res.data.id));
     }, []); 
 
-    const [reviews, setReviews] = useState([]);
-    const [user, setUser] = useState({});
+    const [reviews, setReviews] = useState<ReviewData[]>([]);
+    const [user, setUser] = useState<Partial<UserData>>({});
 
 
     useEffect(() => {

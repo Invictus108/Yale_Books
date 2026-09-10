@@ -1,13 +1,14 @@
+import type { BookData } from '../types';
 import './Author.css'
 import NavBar from './NavBar.tsx';
 import { useState, useEffect } from "react";
 import axios from 'axios';
 import { Link } from "react-router-dom";
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams } from "react-router-dom"
 
 export default function Author() {
     const {author} = useParams();
-    const [books, setBooks] = useState([]);
+    const [books, setBooks] = useState<BookData[]>([]);
 
 
     // update on query
